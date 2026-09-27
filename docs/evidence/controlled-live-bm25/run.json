@@ -1,0 +1,25 @@
+{
+  "run_id": "19e825f0185c44db89fb7d85ffac6129",
+  "status": "partial",
+  "error": null,
+  "mode": "controlled-live",
+  "retrieval": "bm25",
+  "model_calls_including_embeddings": 10,
+  "tool_calls": 15,
+  "tasks": 2,
+  "peak_child_concurrency": 2,
+  "reported_chat_prompt_tokens": 22283,
+  "reported_chat_completion_tokens": 5014,
+  "elapsed_ms": 17735,
+  "child_failures": [],
+  "limits": {
+    "max_calls": 12,
+    "max_tools": 48,
+    "parent_steps": 8,
+    "child_steps": 5,
+    "max_tasks": 2,
+    "concurrency": 2,
+    "request_timeout": 90.0,
+    "run_timeout": 240.0
+  }
+}
