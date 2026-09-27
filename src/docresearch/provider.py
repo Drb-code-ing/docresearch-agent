@@ -9,6 +9,10 @@ import httpx
 from .models import Reply, ToolCall
 
 
+class ProviderProtocolError(Exception):
+    """The endpoint returned a successful status but an invalid response shape."""
+
+
 class Model(Protocol):
     async def chat(self, messages: list[dict], tools: list[dict]) -> Reply: ...
 
@@ -44,20 +48,23 @@ class CompatibleModel:
             json={"model": self.model, "messages": messages, "tools": tools, "max_tokens": 1600},
         )
         response.raise_for_status()
-        body = response.json()
-        message = body["choices"][0]["message"]
-        usage = body.get("usage") or {}
-        return Reply(
-            content=message.get("content") or "",
-            calls=[
-                ToolCall(
-                    id=c["id"], name=c["function"]["name"], arguments=c["function"]["arguments"]
-                )
-                for c in message.get("tool_calls") or []
-            ],
-            prompt_tokens=usage.get("prompt_tokens", 0),
-            completion_tokens=usage.get("completion_tokens", 0),
-        )
+        try:
+            body = response.json()
+            message = body["choices"][0]["message"]
+            usage = body.get("usage") or {}
+            return Reply(
+                content=message.get("content") or "",
+                calls=[
+                    ToolCall(
+                        id=c["id"], name=c["function"]["name"], arguments=c["function"]["arguments"]
+                    )
+                    for c in message.get("tool_calls") or []
+                ],
+                prompt_tokens=usage.get("prompt_tokens", 0),
+                completion_tokens=usage.get("completion_tokens", 0),
+            )
+        except (KeyError, IndexError, TypeError, AttributeError, ValueError) as error:
+            raise ProviderProtocolError("Invalid chat response") from error
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         response = await self.client.post(
@@ -65,10 +72,13 @@ class CompatibleModel:
             json={"model": self.embedding_model, "input": texts},
         )
         response.raise_for_status()
-        data = sorted(response.json()["data"], key=lambda row: row["index"])
-        if [row["index"] for row in data] != list(range(len(texts))):
-            raise ValueError("Embedding response indices do not match inputs")
-        return [row["embedding"] for row in data]
+        try:
+            data = sorted(response.json()["data"], key=lambda row: row["index"])
+            if [row["index"] for row in data] != list(range(len(texts))):
+                raise ValueError("Embedding response indices do not match inputs")
+            return [row["embedding"] for row in data]
+        except (KeyError, IndexError, TypeError, AttributeError, ValueError) as error:
+            raise ProviderProtocolError("Invalid embedding response") from error
 
     async def close(self) -> None:
         await self.client.aclose()

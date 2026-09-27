@@ -24,3 +24,14 @@
 - 终止结果由 Pydantic 校验，只允许引用本代理实际见过的片段；来源校验不等于语义正确。
 - 提供兼容接口的真实模型模式与明确标记的确定性离线演示。
 - 产出 report.md、sources.json、trace.json、run.json，日志不保存 API 密钥或完整聊天。
+
+## 04 - 行为验证与审查修复
+
+- 本地 Windows / Python 3.12：`uv run pytest -q`，51 passed。
+- `uv run ruff check .` 通过，格式化检查纳入 CI。
+- 通过 HTTP MockTransport 验证请求与响应契约；没有以模拟响应冒充真实提供方验收。
+- 独立审查后增加 ProviderProtocolError，区分 HTTP 200 但格式错误的兼容接口响应。
+- 子代理不仅返回结论和引用 ID，也把引用的来源正文返回父代理，避免只传递引用编号。
+- 测试覆盖路径、快照、非法输入、BM25、混合召回、引用、共享预算、工具权限、超时与取消。
+- 首次测试发现参数化用例的长字节串被用作 Windows 临时目录名；改为简短 case ID 后通过。
+- GitHub 推送初次连接失败，使用系统已配置的本地代理后成功；未持久修改 Git 全局代理配置。

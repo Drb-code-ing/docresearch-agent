@@ -200,7 +200,12 @@ class ResearchRun:
                 for finding in result.findings:
                     parent.seen.update(finding.source_ids)
                 self.event("child_end", state.name, status="completed")
-                return {"status": "completed", "result": result.model_dump()}
+                cited = sorted({key for finding in result.findings for key in finding.source_ids})
+                return {
+                    "status": "completed",
+                    "result": result.model_dump(),
+                    "sources": [self.corpus.read(key).payload() for key in cited],
+                }
             except BudgetExceeded:
                 raise
             except Exception as error:
