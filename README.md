@@ -2,7 +2,7 @@
 
 一个小而完整的 Python 本地资料调研项目：读取 Markdown/TXT，检索证据，派发独立上下文的研究子代理，生成带来源的 Markdown 报告。
 
-项目已实现 CLI 闭环，默认演示不联网、不需要密钥。真实模型与 Embedding 走显式配置的 OpenAI-compatible 接口；已完成自动化测试和一次自编资料上的真实模型端到端验收。Embedding 的独立真实冒烟遇到超时，尚未完成。**单次验收不是大样本质量评测，不宣称性能提升或生产使用。**
+项目已实现 CLI 闭环，默认演示不联网、不需要密钥。聊天与 Embedding 走显式配置的 OpenAI-compatible 接口；已完成自动化测试和一次自编资料上的真实聊天模型 + BM25 端到端验收。Embedding 独立真实冒烟超时，不能宣称真实向量/RRF 路径已验收。**单次验收不是大样本质量评测，不宣称性能提升或生产使用。**
 
 ## 快速运行
 
@@ -32,7 +32,7 @@ docresearch demo
 | `trace.json` | 模型/工具调用与子任务阶段、耗时、错误分类 |
 | `run.json` | 状态、调用计数、并发峰值和配置上限 |
 
-演示返回 `partial` 是预期结果：它明确留下性能对比和真实推理缺口。`completed/partial` 的 CLI 退出码为 0，`failed/budget_exhausted/timeout` 为 1；严格验收时必须进一步检查 `run.json`。
+演示返回 `partial` 是预期结果：它明确留下性能对比和真实推理缺口。`completed/partial` 的 CLI 退出码为 0，`failed/budget_exhausted/timeout` 为 1；严格验收时检查 `run.json` 的 status、error、child_failures，再核对报告缺口与原文。离线 fixture 固定为 6 次模拟调用，不等于真实任务的请求数；真实样例的 10 次请求见 [验收证据](docs/VALIDATION.md)。
 
 ## 真实模型模式
 
