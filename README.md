@@ -2,7 +2,7 @@
 
 一个小而完整的 Python 本地资料调研项目：读取 Markdown/TXT，检索证据，派发独立上下文的研究子代理，生成带来源的 Markdown 报告。
 
-项目已实现 CLI 闭环，默认演示不联网、不需要密钥。聊天与 Embedding 走显式配置的 OpenAI-compatible 接口；已完成自动化测试和一次自编资料上的真实聊天模型 + BM25 端到端验收。Embedding 独立真实冒烟超时，不能宣称真实向量/RRF 路径已验收。**单次验收不是大样本质量评测，不宣称性能提升或生产使用。**
+项目提供完整 CLI：默认演示不联网、不需要密钥；真实模式支持独立配置的聊天与 Embedding 服务。已在自编资料上跑通真实聊天 + BM25，以及真实聊天 + Embedding + RRF 两条端到端链路。**样例验收不是大样本质量评测，不宣称性能提升或生产使用。**
 
 ## 快速运行
 
@@ -47,7 +47,17 @@ uv run docresearch run "比较两份资料的部署约束，指出缺失证据" 
 
 `.env.example` 只说明变量，程序**不会自动读取 `.env`**。兼容服务须支持 `/chat/completions` 的 tools/tool_calls 协议；不同提供方仍需实测。暂不支持流式输出、自动重试和 reasoning 专用参数。
 
-默认只使用本地 BM25。要启用混合检索，再设置 `DOCRESEARCH_EMBEDDING_MODEL`，该模型使用同一 base URL 与 API key 的 `/embeddings` 接口。每次启动重新建内存索引，不持久缓存向量。
+默认只使用本地 BM25。启用混合检索时设置 `DOCRESEARCH_EMBEDDING_MODEL`，默认复用聊天的 base URL 和 API key。若是不同服务，再成对设置：
+
+```powershell
+$env:DOCRESEARCH_EMBEDDING_MODEL = "你的向量模型名称"
+$env:DOCRESEARCH_EMBEDDING_BASE_URL = "https://your-embedding-provider.example/v1"
+$env:DOCRESEARCH_EMBEDDING_API_KEY = "该向量服务的密钥"
+```
+
+单独设置 URL 或 key 会被拒绝，避免把聊天密钥误发给另一个服务。每次启动重新建内存索引，不持久缓存向量。
+
+HTTPX 默认读取环境配置，在 Windows 上也可能采用系统代理，即使没有 `HTTPS_PROXY`。如果代理不可达而提供方允许直连，可在当前终端设置 `$env:DOCRESEARCH_TRUST_ENV = "false"`。这会禁用环境/系统代理与环境证书配置，**仍开启 TLS 证书校验**；需要企业代理或自定义 CA 时应保留默认 `true`。程序不会自动切换端点、降低 TLS 安全性或静默退回 BM25。
 
 **隐私边界：live 模式会将问题、检索片段和子代理结果发送给配置的模型提供方；开启 Embedding 后会发送整个资料快照的文本块。这里的“本地”指资料来源与报告落盘，不代表推理不出设备。** 先用自编样例验证，勿直接投入隐私或无权处理的资料。
 
@@ -57,7 +67,7 @@ uv run docresearch run "你的问题" --max-calls 24 --timeout 180
 
 调用预算包含聊天与 Embedding 请求，不是费用预算。Token 统计仅累加提供方返回的聊天 usage，缺失时为 0，不可把 0 当成免费。
 
-## 首版范围
+## 项目范围
 
 - CLI，本地资料目录与独立报告目录。
 - BM25 关键词检索；配置真实 Embedding 服务后可启用向量 + BM25 的 RRF 混合检索。
@@ -75,7 +85,7 @@ uv run ruff format --check .
 uv run pytest -q
 ```
 
-Windows / Python 3.12 本地验证为 51 passed；GitHub Actions 配置 Windows/Linux × Python 3.11/3.12。测试使用临时目录、确定性模型及 HTTP MockTransport，不会消耗真实 API 额度。
+GitHub Actions 覆盖 Windows/Linux × Python 3.11/3.12。测试使用临时目录、确定性模型及 HTTP MockTransport，不会消耗真实 API 额度。最新测试与真实调用记录见 [验收证据](docs/VALIDATION.md)。
 
 ## 深入阅读
 

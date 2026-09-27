@@ -3,7 +3,7 @@
 ## 自动化验证
 
 - 日期：2026-09-28，Asia/Shanghai。
-- 本地：Windows，uv 管理的 CPython 3.12.13，51 passed。
+- 本地：Windows，uv 管理的 CPython 3.12.13；测试数量以本文件后续验收记录为准。
 - Ruff 检查与格式化检查通过。
 - GitHub Actions：Windows/Linux × Python 3.11/3.12 四个组合均通过。
 - [首次 CI 记录](https://github.com/Drb-code-ing/docresearch-agent/actions/runs/36333536157)。后续文档提交也运行相同 CI，可在 Actions 查看。
@@ -33,11 +33,21 @@
 
 没有将完整模型聊天、密钥、个人简历、用户真实资料提交到公开仓库。
 
-## Embedding 真实冒烟未完成
+## 真实混合检索端到端验收
 
-在同一次授权范围内另行尝试既有 Embedding 配置，只输入自编样例，最多两次请求，用于“批量文档向量 + 查询向量”的检索冒烟。过程中出现 TimeoutError，未得到完整混合检索输出，因此不宣称真实 Embedding/RRF 路径通过验收，也没有持续重试。
+先前 Embedding 冒烟曾超时。排查中保持端点、模型和输入不变，默认路由与显式系统代理均 ConnectTimeout；使用 `trust_env=False` 直连后，同一服务返回 HTTP 200 和 1024 维向量。HTTPX 在这台 Windows 机器上通过系统代理解析获取代理，不以是否存在 `HTTPS_PROXY` 环境变量为唯一依据。没有关闭 TLS 校验，没有更换服务或密钥。
 
-向量归一化、维度校验、RRF 与模拟 HTTP 协议路径有自动化测试；真实 Embedding 模型效果、数据集质量和延迟仍未确认。聊天与向量配置属于不同的既有提供方配置，本次没有为生产部署改写 CLI 配置模型。
+补充独立 Embedding URL/key 配置与显式 `DOCRESEARCH_TRUST_ENV` 开关，回归测试先失败后通过。通过实际 CLI 入口 `python -m docresearch.cli run ...`（与 `docresearch run` 共用 `main`）完成了研究，不使用定制检索器绕过 CLI：
+
+- 数据：仍仅为 `examples/corpus` 三份自编资料。
+- 请求模型标识：chat `deepseek-v4-flash`，embedding `text-embedding-v4`，1024 维；服务端模型身份不作额外推断。
+- 模式：`hybrid-rrf`，13 次请求，其中 10 次聊天、3 次 Embedding（1 次建索引、2 次查询）。
+- 17 次计数工具调用，2 个子任务，并发峰值 2，子任务失败 0。
+- 19609 ms；chat usage 为 23620 prompt tokens / 6097 completion tokens；不包含向量计费。
+- 状态 `partial`、error 为 null，8 个发现、8 个缺口、3 份来源。缺口是资料缺少规模/性能/成本数据，不是链路失败。
+- [报告](evidence/controlled-live-hybrid/report.md)、[统计](evidence/controlled-live-hybrid/run.json)、[轨迹](evidence/controlled-live-hybrid/trace.json)、[来源快照](evidence/controlled-live-hybrid/sources.json)。
+
+逐项检查报告：部署、维护和检索能力表述能对应自编原文；没有编造延迟、吞吐量或费用数字。本记录证明这组配置下完整链路可用，不证明混合检索优于 BM25，也不证明真实业务准确率。
 
 ## 正确解读证据
 
@@ -47,5 +57,6 @@
 | HTTP MockTransport | 请求/响应解析和错误分类 | 外部服务可用性 |
 | DemoModel | 确定性工具循环与产物 | 自主研究能力 |
 | 真实 BM25 样例运行 | 选定接口能完成派发、检索、回读与报告 | 所有模型兼容、实际用户效果 |
+| 真实混合检索样例运行 | 独立 chat/embedding 配置下能建索引、查询、融合并生成报告 | 相对 BM25 的质量提升、大规模检索能力 |
 | 来源校验 | 引用来自任务内已见快照 | 结论一定被原文支持 |
 | 单次耗时/usage | 这一次调用的记录 | 平均性能、节省比例、生产成本 |

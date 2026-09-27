@@ -18,10 +18,30 @@ class Model(Protocol):
 
 
 class CompatibleModel:
-    def __init__(self, base_url: str, api_key: str, model: str, embedding_model: str = ""):
-        url = httpx.URL(base_url)
-        if url.scheme not in {"http", "https"} or url.username or url.password or url.query:
-            raise ValueError("Use an HTTP(S) base URL without credentials or query parameters")
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        embedding_model: str = "",
+        *,
+        embedding_base_url: str = "",
+        embedding_api_key: str = "",
+        trust_env: bool = True,
+    ):
+        if bool(embedding_base_url) != bool(embedding_api_key):
+            raise ValueError("Set embedding base URL and API key together")
+        for value in [base_url, embedding_base_url or base_url]:
+            url = httpx.URL(value)
+            if (
+                url.scheme not in {"http", "https"}
+                or not url.host
+                or url.username
+                or url.password
+                or url.query
+                or url.fragment
+            ):
+                raise ValueError("Use an HTTP(S) base URL without credentials, query or fragment")
         if not api_key or not model:
             raise ValueError("API key and chat model are required")
         self.model = model
@@ -31,15 +51,33 @@ class CompatibleModel:
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=30.0,
             follow_redirects=False,
+            trust_env=trust_env,
+        )
+        self.embedding_client = (
+            httpx.AsyncClient(
+                base_url=embedding_base_url.rstrip("/") + "/",
+                headers={"Authorization": f"Bearer {embedding_api_key}"},
+                timeout=30.0,
+                follow_redirects=False,
+                trust_env=trust_env,
+            )
+            if embedding_base_url
+            else None
         )
 
     @classmethod
     def from_env(cls) -> "CompatibleModel":
+        trust_env = os.environ.get("DOCRESEARCH_TRUST_ENV", "true").lower().strip()
+        if trust_env not in {"true", "false"}:
+            raise ValueError("DOCRESEARCH_TRUST_ENV must be true or false")
         return cls(
             os.environ.get("DOCRESEARCH_BASE_URL", ""),
             os.environ.get("DOCRESEARCH_API_KEY", ""),
             os.environ.get("DOCRESEARCH_MODEL", ""),
             os.environ.get("DOCRESEARCH_EMBEDDING_MODEL", ""),
+            embedding_base_url=os.environ.get("DOCRESEARCH_EMBEDDING_BASE_URL", ""),
+            embedding_api_key=os.environ.get("DOCRESEARCH_EMBEDDING_API_KEY", ""),
+            trust_env=trust_env == "true",
         )
 
     async def chat(self, messages: list[dict], tools: list[dict]) -> Reply:
@@ -67,7 +105,7 @@ class CompatibleModel:
             raise ProviderProtocolError("Invalid chat response") from error
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        response = await self.client.post(
+        response = await (self.embedding_client or self.client).post(
             "embeddings",
             json={"model": self.embedding_model, "input": texts},
         )
@@ -81,7 +119,11 @@ class CompatibleModel:
             raise ProviderProtocolError("Invalid embedding response") from error
 
     async def close(self) -> None:
-        await self.client.aclose()
+        try:
+            await self.client.aclose()
+        finally:
+            if self.embedding_client is not None:
+                await self.embedding_client.aclose()
 
 
 class DemoModel:

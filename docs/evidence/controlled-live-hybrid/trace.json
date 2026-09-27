@@ -1,0 +1,338 @@
+[
+  {
+    "event": "model_start",
+    "agent": "coordinator",
+    "elapsed_ms": 296,
+    "step": 1
+  },
+  {
+    "event": "model_end",
+    "agent": "coordinator",
+    "elapsed_ms": 937,
+    "step": 1,
+    "prompt_tokens": 1077,
+    "completion_tokens": 37
+  },
+  {
+    "event": "tool_start",
+    "agent": "coordinator",
+    "elapsed_ms": 937,
+    "tool": "list_documents"
+  },
+  {
+    "event": "tool_end",
+    "agent": "coordinator",
+    "elapsed_ms": 937,
+    "tool": "list_documents"
+  },
+  {
+    "event": "model_start",
+    "agent": "coordinator",
+    "elapsed_ms": 937,
+    "step": 2
+  },
+  {
+    "event": "model_end",
+    "agent": "coordinator",
+    "elapsed_ms": 2734,
+    "step": 2,
+    "prompt_tokens": 1305,
+    "completion_tokens": 334
+  },
+  {
+    "event": "tool_start",
+    "agent": "coordinator",
+    "elapsed_ms": 2734,
+    "tool": "task"
+  },
+  {
+    "event": "child_start",
+    "agent": "research-1",
+    "elapsed_ms": 2734
+  },
+  {
+    "event": "model_start",
+    "agent": "research-1",
+    "elapsed_ms": 2734,
+    "step": 1
+  },
+  {
+    "event": "tool_start",
+    "agent": "coordinator",
+    "elapsed_ms": 2750,
+    "tool": "task"
+  },
+  {
+    "event": "child_start",
+    "agent": "research-2",
+    "elapsed_ms": 2750
+  },
+  {
+    "event": "model_start",
+    "agent": "research-2",
+    "elapsed_ms": 2750,
+    "step": 1
+  },
+  {
+    "event": "model_end",
+    "agent": "research-1",
+    "elapsed_ms": 3343,
+    "step": 1,
+    "prompt_tokens": 1011,
+    "completion_tokens": 81
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-1",
+    "elapsed_ms": 3343,
+    "tool": "list_documents"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-1",
+    "elapsed_ms": 3343,
+    "tool": "list_documents"
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-1",
+    "elapsed_ms": 3343,
+    "tool": "search"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-1",
+    "elapsed_ms": 3453,
+    "tool": "search"
+  },
+  {
+    "event": "model_start",
+    "agent": "research-1",
+    "elapsed_ms": 3453,
+    "step": 2
+  },
+  {
+    "event": "model_end",
+    "agent": "research-2",
+    "elapsed_ms": 3578,
+    "step": 1,
+    "prompt_tokens": 1001,
+    "completion_tokens": 104
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-2",
+    "elapsed_ms": 3578,
+    "tool": "list_documents"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-2",
+    "elapsed_ms": 3578,
+    "tool": "list_documents"
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-2",
+    "elapsed_ms": 3578,
+    "tool": "search"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-2",
+    "elapsed_ms": 3718,
+    "tool": "search"
+  },
+  {
+    "event": "model_start",
+    "agent": "research-2",
+    "elapsed_ms": 3718,
+    "step": 2
+  },
+  {
+    "event": "model_end",
+    "agent": "research-1",
+    "elapsed_ms": 4375,
+    "step": 2,
+    "prompt_tokens": 1981,
+    "completion_tokens": 148
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-1",
+    "elapsed_ms": 4375,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-1",
+    "elapsed_ms": 4375,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-1",
+    "elapsed_ms": 4375,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-1",
+    "elapsed_ms": 4375,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-1",
+    "elapsed_ms": 4375,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-1",
+    "elapsed_ms": 4375,
+    "tool": "read_source"
+  },
+  {
+    "event": "model_start",
+    "agent": "research-1",
+    "elapsed_ms": 4375,
+    "step": 3
+  },
+  {
+    "event": "model_end",
+    "agent": "research-2",
+    "elapsed_ms": 4484,
+    "step": 2,
+    "prompt_tokens": 1994,
+    "completion_tokens": 151
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-2",
+    "elapsed_ms": 4484,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-2",
+    "elapsed_ms": 4484,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-2",
+    "elapsed_ms": 4484,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-2",
+    "elapsed_ms": 4484,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-2",
+    "elapsed_ms": 4484,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-2",
+    "elapsed_ms": 4484,
+    "tool": "read_source"
+  },
+  {
+    "event": "model_start",
+    "agent": "research-2",
+    "elapsed_ms": 4484,
+    "step": 3
+  },
+  {
+    "event": "model_end",
+    "agent": "research-2",
+    "elapsed_ms": 9328,
+    "step": 3,
+    "prompt_tokens": 2873,
+    "completion_tokens": 1096
+  },
+  {
+    "event": "finalized",
+    "agent": "research-2",
+    "elapsed_ms": 9328,
+    "findings": 8
+  },
+  {
+    "event": "child_end",
+    "agent": "research-2",
+    "elapsed_ms": 9328,
+    "status": "completed"
+  },
+  {
+    "event": "tool_end",
+    "agent": "coordinator",
+    "elapsed_ms": 9328,
+    "tool": "task"
+  },
+  {
+    "event": "model_end",
+    "agent": "research-1",
+    "elapsed_ms": 10375,
+    "step": 3,
+    "prompt_tokens": 2857,
+    "completion_tokens": 1599
+  },
+  {
+    "event": "model_start",
+    "agent": "research-1",
+    "elapsed_ms": 10375,
+    "step": 4
+  },
+  {
+    "event": "model_end",
+    "agent": "research-1",
+    "elapsed_ms": 14171,
+    "step": 4,
+    "prompt_tokens": 4484,
+    "completion_tokens": 1193
+  },
+  {
+    "event": "finalized",
+    "agent": "research-1",
+    "elapsed_ms": 14171,
+    "findings": 8
+  },
+  {
+    "event": "child_end",
+    "agent": "research-1",
+    "elapsed_ms": 14171,
+    "status": "completed"
+  },
+  {
+    "event": "tool_end",
+    "agent": "coordinator",
+    "elapsed_ms": 14171,
+    "tool": "task"
+  },
+  {
+    "event": "model_start",
+    "agent": "coordinator",
+    "elapsed_ms": 14171,
+    "step": 3
+  },
+  {
+    "event": "model_end",
+    "agent": "coordinator",
+    "elapsed_ms": 19609,
+    "step": 3,
+    "prompt_tokens": 5037,
+    "completion_tokens": 1354
+  },
+  {
+    "event": "finalized",
+    "agent": "coordinator",
+    "elapsed_ms": 19609,
+    "findings": 8
+  }
+]
