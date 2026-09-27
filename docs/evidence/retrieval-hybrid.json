@@ -1,0 +1,291 @@
+{
+  "mode": "hybrid-rrf",
+  "top_k_chunks": 2,
+  "document_count": 3,
+  "chunk_count": 3,
+  "embedding_requests": 21,
+  "elapsed_ms": 2937,
+  "metrics": {
+    "answerable_cases": 16,
+    "mean_document_recall_at_2": 1.0,
+    "top_1_document_hit_rate": 0.875,
+    "no_answer_cases": 4,
+    "no_answer_empty_result_rate": 0.0
+  },
+  "cases": [
+    {
+      "query": "pgvector 是什么扩展？",
+      "expected_documents": [
+        "pgvector.md"
+      ],
+      "returned_documents": [
+        "selection.txt",
+        "pgvector.md"
+      ],
+      "returned_source_ids": [
+        "1274227b93ceec10",
+        "e5a95ea4d55ef429"
+      ]
+    },
+    {
+      "query": "在 PostgreSQL 中保存向量并组合 SQL 查询",
+      "expected_documents": [
+        "pgvector.md"
+      ],
+      "returned_documents": [
+        "pgvector.md",
+        "selection.txt"
+      ],
+      "returned_source_ids": [
+        "e5a95ea4d55ef429",
+        "1274227b93ceec10"
+      ]
+    },
+    {
+      "query": "pgvector 的中文分词有什么要求？",
+      "expected_documents": [
+        "pgvector.md"
+      ],
+      "returned_documents": [
+        "pgvector.md",
+        "selection.txt"
+      ],
+      "returned_source_ids": [
+        "e5a95ea4d55ef429",
+        "1274227b93ceec10"
+      ]
+    },
+    {
+      "query": "复用关系数据库减少额外运维组件",
+      "expected_documents": [
+        "pgvector.md"
+      ],
+      "returned_documents": [
+        "pgvector.md",
+        "milvus.md"
+      ],
+      "returned_source_ids": [
+        "e5a95ea4d55ef429",
+        "4be8254c3582f23b"
+      ]
+    },
+    {
+      "query": "PostgreSQL 全文检索和向量召回如何组合？",
+      "expected_documents": [
+        "pgvector.md"
+      ],
+      "returned_documents": [
+        "pgvector.md",
+        "selection.txt"
+      ],
+      "returned_source_ids": [
+        "e5a95ea4d55ef429",
+        "1274227b93ceec10"
+      ]
+    },
+    {
+      "query": "Milvus 支持哪些过滤能力？",
+      "expected_documents": [
+        "milvus.md"
+      ],
+      "returned_documents": [
+        "milvus.md",
+        "selection.txt"
+      ],
+      "returned_source_ids": [
+        "4be8254c3582f23b",
+        "1274227b93ceec10"
+      ]
+    },
+    {
+      "query": "独立向量数据库增加哪些维护工作？",
+      "expected_documents": [
+        "milvus.md"
+      ],
+      "returned_documents": [
+        "milvus.md",
+        "pgvector.md"
+      ],
+      "returned_source_ids": [
+        "4be8254c3582f23b",
+        "e5a95ea4d55ef429"
+      ]
+    },
+    {
+      "query": "Milvus 是否必然优于 PostgreSQL 扩展？",
+      "expected_documents": [
+        "milvus.md"
+      ],
+      "returned_documents": [
+        "milvus.md",
+        "selection.txt"
+      ],
+      "returned_source_ids": [
+        "4be8254c3582f23b",
+        "1274227b93ceec10"
+      ]
+    },
+    {
+      "query": "检索容量与业务数据库分别规划",
+      "expected_documents": [
+        "milvus.md"
+      ],
+      "returned_documents": [
+        "selection.txt",
+        "milvus.md"
+      ],
+      "returned_source_ids": [
+        "1274227b93ceec10",
+        "4be8254c3582f23b"
+      ]
+    },
+    {
+      "query": "Milvus 选型需要考虑的更新频率与查询模式",
+      "expected_documents": [
+        "milvus.md"
+      ],
+      "returned_documents": [
+        "milvus.md",
+        "selection.txt"
+      ],
+      "returned_source_ids": [
+        "4be8254c3582f23b",
+        "1274227b93ceec10"
+      ]
+    },
+    {
+      "query": "选型前要先确认哪些需求？",
+      "expected_documents": [
+        "selection.txt"
+      ],
+      "returned_documents": [
+        "selection.txt",
+        "milvus.md"
+      ],
+      "returned_source_ids": [
+        "1274227b93ceec10",
+        "4be8254c3582f23b"
+      ]
+    },
+    {
+      "query": "如何公平比较性能优劣和费用？",
+      "expected_documents": [
+        "selection.txt"
+      ],
+      "returned_documents": [
+        "selection.txt",
+        "milvus.md"
+      ],
+      "returned_source_ids": [
+        "1274227b93ceec10",
+        "4be8254c3582f23b"
+      ]
+    },
+    {
+      "query": "small corpus SQL joins reuse PostgreSQL",
+      "expected_documents": [
+        "pgvector.md"
+      ],
+      "returned_documents": [
+        "pgvector.md",
+        "milvus.md"
+      ],
+      "returned_source_ids": [
+        "e5a95ea4d55ef429",
+        "4be8254c3582f23b"
+      ]
+    },
+    {
+      "query": "independent scaling monitoring backups synchronization",
+      "expected_documents": [
+        "milvus.md"
+      ],
+      "returned_documents": [
+        "milvus.md",
+        "pgvector.md"
+      ],
+      "returned_source_ids": [
+        "4be8254c3582f23b",
+        "e5a95ea4d55ef429"
+      ]
+    },
+    {
+      "query": "比较 pgvector 和 Milvus 部署组件与维护代价",
+      "expected_documents": [
+        "pgvector.md",
+        "milvus.md"
+      ],
+      "returned_documents": [
+        "milvus.md",
+        "pgvector.md"
+      ],
+      "returned_source_ids": [
+        "4be8254c3582f23b",
+        "e5a95ea4d55ef429"
+      ]
+    },
+    {
+      "query": "两种方案的关键词或标量过滤能力",
+      "expected_documents": [
+        "pgvector.md",
+        "milvus.md"
+      ],
+      "returned_documents": [
+        "pgvector.md",
+        "milvus.md"
+      ],
+      "returned_source_ids": [
+        "e5a95ea4d55ef429",
+        "4be8254c3582f23b"
+      ]
+    },
+    {
+      "query": "pgvector 百万向量查询的 P95 延迟是多少毫秒？",
+      "expected_documents": [],
+      "returned_documents": [
+        "pgvector.md",
+        "selection.txt"
+      ],
+      "returned_source_ids": [
+        "e5a95ea4d55ef429",
+        "1274227b93ceec10"
+      ]
+    },
+    {
+      "query": "Milvus 每月具体费用是多少元？",
+      "expected_documents": [],
+      "returned_documents": [
+        "milvus.md",
+        "pgvector.md"
+      ],
+      "returned_source_ids": [
+        "4be8254c3582f23b",
+        "e5a95ea4d55ef429"
+      ]
+    },
+    {
+      "query": "两者压测吞吐量分别是多少 QPS？",
+      "expected_documents": [],
+      "returned_documents": [
+        "milvus.md",
+        "pgvector.md"
+      ],
+      "returned_source_ids": [
+        "4be8254c3582f23b",
+        "e5a95ea4d55ef429"
+      ]
+    },
+    {
+      "query": "怎样安装 Redis 并配置集群？",
+      "expected_documents": [],
+      "returned_documents": [
+        "pgvector.md",
+        "selection.txt"
+      ],
+      "returned_source_ids": [
+        "e5a95ea4d55ef429",
+        "1274227b93ceec10"
+      ]
+    }
+  ]
+}

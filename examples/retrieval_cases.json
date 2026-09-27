@@ -1,0 +1,22 @@
+[
+  {"query": "pgvector 是什么扩展？", "expected_documents": ["pgvector.md"]},
+  {"query": "在 PostgreSQL 中保存向量并组合 SQL 查询", "expected_documents": ["pgvector.md"]},
+  {"query": "pgvector 的中文分词有什么要求？", "expected_documents": ["pgvector.md"]},
+  {"query": "复用关系数据库减少额外运维组件", "expected_documents": ["pgvector.md"]},
+  {"query": "PostgreSQL 全文检索和向量召回如何组合？", "expected_documents": ["pgvector.md"]},
+  {"query": "Milvus 支持哪些过滤能力？", "expected_documents": ["milvus.md"]},
+  {"query": "独立向量数据库增加哪些维护工作？", "expected_documents": ["milvus.md"]},
+  {"query": "Milvus 是否必然优于 PostgreSQL 扩展？", "expected_documents": ["milvus.md"]},
+  {"query": "检索容量与业务数据库分别规划", "expected_documents": ["milvus.md"]},
+  {"query": "Milvus 选型需要考虑的更新频率与查询模式", "expected_documents": ["milvus.md"]},
+  {"query": "选型前要先确认哪些需求？", "expected_documents": ["selection.txt"]},
+  {"query": "如何公平比较性能优劣和费用？", "expected_documents": ["selection.txt"]},
+  {"query": "small corpus SQL joins reuse PostgreSQL", "expected_documents": ["pgvector.md"]},
+  {"query": "independent scaling monitoring backups synchronization", "expected_documents": ["milvus.md"]},
+  {"query": "比较 pgvector 和 Milvus 部署组件与维护代价", "expected_documents": ["pgvector.md", "milvus.md"]},
+  {"query": "两种方案的关键词或标量过滤能力", "expected_documents": ["pgvector.md", "milvus.md"]},
+  {"query": "pgvector 百万向量查询的 P95 延迟是多少毫秒？", "expected_documents": []},
+  {"query": "Milvus 每月具体费用是多少元？", "expected_documents": []},
+  {"query": "两者压测吞吐量分别是多少 QPS？", "expected_documents": []},
+  {"query": "怎样安装 Redis 并配置集群？", "expected_documents": []}
+]

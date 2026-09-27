@@ -89,8 +89,17 @@ GitHub Actions 覆盖 Windows/Linux × Python 3.11/3.12。测试使用临时目�
 
 ## 深入阅读
 
-- [详细项目理解文档](docs/PROJECT_UNDERSTANDING.md)：从最小心智模型、代码入口到预算/取消、检索、引用及已知限制。
-- [项目面试文档](docs/INTERVIEW_GUIDE.md)：30 秒/2 分钟介绍，常见追问、回答证据及不能夸大的表述。
+先跑这个离线学习脚本：它逐步打印真实 Source、分词、检索结果、参数校验、子代理执行顺序，玩具向量另作明确标记。
+
+```bash
+uv run python -X utf8 examples/walkthrough.py
+uv run python -X utf8 -m docresearch.evaluation
+# 配置好向量服务后才运行下一条，会发送样例并消耗向量 API 额度：
+uv run python -X utf8 -m docresearch.evaluation --hybrid
+```
+
+- [详细项目理解文档](docs/PROJECT_UNDERSTANDING.md)：用同一个问题，从 Python 启动、资料变片段，到检索、工具循环、子代理与报告逐步讲解。
+- [项目面试文档](docs/INTERVIEW_GUIDE.md)：每个模块的实现、选择理由、口述答案、追问和代码证据。
 - [交付记录](docs/DELIVERY.md)：分步实现与验证过程。
 - [验收证据](docs/VALIDATION.md)：真实调用、模拟测试与未完成项分开记录。
 - [简历项目描述](docs/RESUME.md)：不含个人联系方式的可审计项目描述。
