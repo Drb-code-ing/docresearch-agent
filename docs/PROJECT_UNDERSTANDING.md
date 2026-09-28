@@ -8,6 +8,19 @@
 
 **先读一遍运行故事，再看实现。** 第 1 节先回答“这个程序在忙什么”；第 3、5、6、7、9、11 节分别解释资料、工具、循环、分工、引用和文件。第 4 节的数据库参数可以第二遍再读，不需要先记住 HNSW 的参数才能理解整个项目。每读完一节，先用自己的话复述例子，再打开对应源码。
 
+### 按你要弄明白的问题进入正文
+
+| 你现在的疑问 | 先看哪里 | 读完应能做什么 |
+| --- | --- | --- |
+| Agent Loop 和 Agentic RAG 到底怎样结合？ | 第 1 节故事、第 5 节检索、第 6 节循环 | 说明外层选动作、内层找证据，为什么一次 search 不是一次模型请求 |
+| “隔离上下文”到底隔离了什么？ | [四份状态的变化](#context-ownership) | 手推子完成以后主的 messages、seen、文件、结论登记表各有什么 |
+| 为什么任务不能随便执行？ | [任务状态转换](#task-transitions) | 判断提前核验、重复派发和前置失败分别怎样处理 |
+| 独立工作区与版本校验怎么实现？ | [编辑冲突的完整闭环](#file-conflict) | 解释路径归属、版本冲突、重新读取再编辑，而不只背“乐观锁” |
+| 简历中的版本到底是哪种？ | [三种版本的区别](#three-versions) | 区分引用原文版本、索引快照指纹、工作文件版本 |
+| 这些类为什么这样拆？ | [设计与替换点](#design-boundaries) | 说明具体变化落在哪个模块，以及哪些能力没有实现 |
+
+本文的表格与小例子是教学推演，不是假装记录了一次真实模型运行。真实验收边界在 [VALIDATION.md](VALIDATION.md)，学习时先理解机制，面试时再分清哪些行为有哪一层证据。
+
 ## 1. 先看它替你做了什么
 
 假设没有这个程序，你会怎样完成任务？
@@ -375,7 +388,7 @@ class Search(Contract):
 
 Contract 启用严格类型并禁止额外字段。于是：
 
-- {"`query`":"Milvus","`limit`":2} 可以执行。
+- `{"query":"Milvus","limit":2}` 可以执行。
 - `limit` 为字符串 "2"，拒绝，不悄悄转换。
 - `limit` 为 100，拒绝，不让模型无限拿资料。
 - 多出 `path`: "../secret"，拒绝，这个工具根本不接受路径参数。
@@ -399,6 +412,27 @@ Contract 启用严格类型并禁止额外字段。于是：
 ```
 
 工具结果必须带 `tool_call_id`="call_001"，这样模型接口才知道它对应哪一次动作。一次返回多个工具调用时，更不能把结果 ID 混用。
+
+下面是一轮包含两个动作的协议示例。为突出配对，只列出追加到 system/user 后面的三条消息；搜索结果也刻意简化为空：
+
+```json
+[
+  {
+    "role": "assistant",
+    "content": null,
+    "tool_calls": [
+      {"id": "call_a", "type": "function", "function": {"name": "search", "arguments": "{\"query\":\"pgvector 部署\",\"limit\":2}"}},
+      {"id": "call_b", "type": "function", "function": {"name": "read_file", "arguments": "{\"area\":\"work\",\"path\":\"notes.md\"}"}}
+    ]
+  },
+  {"role": "tool", "tool_call_id": "call_a", "content": "{\"sources\":[]}"},
+  {"role": "tool", "tool_call_id": "call_b", "content": "{\"error\":\"invalid_arguments_or_source\"}"}
+]
+```
+
+这里假设 notes.md 尚不存在。**失败也要回填对应动作的结果**，不能直接丢掉 call_b。若把第二条 tool 的 ID 也写成 call_a，就变成 A 收到两份答复、B 没有答复，服务可能拒绝后续请求，程序也失去了可靠配对。
+
+`loop` 用 `gather` 按请求顺序收集返回值，再 `zip(reply.calls, outputs, strict=True)` 回填。因此“B 比 A 先完成”不代表把 B 的内容交给 A。`arguments` 和 `content` 在接口中是 JSON 字符串，不是 Python 已执行的函数。终止工具和 plan 另有规则：必须单独一轮调用，不能与这些普通动作混在一起。
 
 `search` 已返回完整的入库片段，而不是只有摘要。`read_source(id)` 用于按已知 ID 明确回读同一个片段，不会扩大成整篇长文件，也不访问任意路径。
 
@@ -480,7 +514,7 @@ save_report **不会立刻写磁盘**。模型先交“报告申请单”（代�
 
 我们的比较任务可以拆成两个独立问题：“部署维护有什么差别”和“检索能力有什么差别”。它们都能直接读同一份资料，不必等待对方结论，适合并发研究。
 
-“先比较方案，再核对比较结论”有依赖，不能盲目同时执行。主用 plan 显式声明 depends_on，程序检查重复 ID、未知依赖和环，并硬性等待依赖完成；它不自动证明语义依赖是否合理。
+“先比较方案，再核对比较结论”有依赖，不能盲目同时执行。主用 plan 显式声明 depends_on，程序检查重复 ID、未知依赖和环；提前启动后继会被拒绝，由主在前置完成后重新请求。它不是自动等待依赖的调度器，也不自动证明语义依赖是否合理。
 
 ### task 实际执行了什么
 
@@ -506,6 +540,24 @@ save_report **不会立刻写磁盘**。模型先交“报告申请单”（代�
 ```
 
 主可同轮派发 task({task_id:"pg"}) 和 task({task_id:"mv"})；check 必须等待前两项成功。child 创建新 AgentState，调用同一个 loop，只接收问题与精简依赖结果。前置失败会让后继标记 dependency_failed，不永远卡在 pending。计划只能追加新 ID，不改写已完成问题。
+
+<a id="task-transitions"></a>
+### 手推一次计划的状态变化
+
+实际状态只有 `pending/running/completed/failed`；`dependency_failed` 是失败原因，不是第五种状态。状态由 [Coordinator](../src/docresearch/coordination.py) 修改，不由模型在回答里宣布。
+
+| 动作 | pg / mv / check 的状态 | 谁执行检查或修改 |
+| --- | --- | --- |
+| plan 登记三项 | pending / pending / pending | plan 全部检查通过后一次加入任务表 |
+| 提前 task(check) | 仍全部 pending；返回工具错误 | start 发现前置未完成，拒绝本次派发，不自动排队 |
+| task(pg)、task(mv) | running / running / pending | start 先标记 running，child 再申请 Semaphore 名额 |
+| 两个子提交有效结果 | completed / completed / pending | loop 校验结果后，finish 登记发现并记完成 |
+| 再次 task(check) | completed / completed / running | start 把两份精简结果交给 child |
+| check 完成，主 save_report | 全部 completed，可整理报告 | report 检查没有未完成计划，并展开已登记结论 |
+
+两种失败要分开：如果 pg 执行失败，check 在尝试启动或发布报告时会被置为 `failed`，原因是 `dependency_failed`；如果只是 pg 还没做完，check 仍是 `pending`。后者不能直接发布报告跳过。
+
+重复 task(pg) 也被 start 拒绝，因为它已经不是 pending。需要补研究就追加新 ID，不把完成记录改回 pending。`running` 表示已接纳派发，可能还在等 Semaphore，不等于此刻正在请求模型；看实际并发要看 `child_start` 和活跃计数。这是一套内存中的状态检查，tasks.json 是结果导出，不是崩溃后恢复执行的检查点。
 
 **不是复制一份 Agent 代码，也不是另起一个 Python 进程。** `parent=False` 选择子角色的工具集合与轮数配置，`loop()` 自己创建新的 `system`/`user` 消息。主、子轮数可分别配置，但默认都为 10 轮。
 
@@ -543,6 +595,41 @@ Schema 和 dispatch 是两层权限检查。子即使凭空构造 task/save_repo
 这意味着主收到的是：“A 的工作完成了；结论是这句话，来自这段资料；还有这个问题没查到；A 写过这些文件。”主**不会因为收到文件名，就自动读到文件正文**；当前 read_file 只能读取输入资料或自己的工作目录，不能读取子私有笔记。主核验结论时，应按 source_id 读取共享的原文，或明确派发新的核验任务。
 
 减少原文累积不等于彻底消除污染：摘要也可能误导或遗漏条件。主需要核对时，可以主动 read_source 或派验证任务；不是为了省 token 就禁止核验。
+
+<a id="context-ownership"></a>
+### 手推一次子完成后的四份状态
+
+假设主刚登记了 pg，自己还没读任何正文。子 pg 搜到片段 `s1`，写了 notes.md，再交出结论。`s1` 在这里是片段编号的教学简称，真实 ID 是 16 个十六进制字符（64 bit）。
+
+| 状态放在哪里 | 子研究时发生什么 | 子结束以后主得到什么 |
+| --- | --- | --- |
+| 每次 loop 的局部 messages | 子的新列表保存自己的 search 请求与含正文的结果 | 主列表只加入 task 的结果摘要，不拼接子的 messages |
+| 每个 AgentState.seen | 子获得正文后变成 {s1} | 主仍为空；没有“把子已读集合并进主”的操作 |
+| 每个 WorkFiles.root | 子在 workspaces/run_id/pg/notes.md 写笔记 | 主只见 files 元数据；自己的同名笔记仍在 coordinator 目录 |
+| 共享 Coordinator.findings | 子终止结果通过检查后，登记 pg:f1 -> 结论及 source_ids | 主拿 pg:f1 选用原结论；登记表由程序保存，不是主的阅读记录 |
+
+对应到代码只有几处关键动作：
+
+```python
+# child 中为这项任务建立状态与工作区；不是复制父状态。
+state = AgentState(task_id, False)
+self.workspaces[task_id] = WorkFiles(self.writer.root / "workspaces" / self.run_id / task_id)
+# loop 内每次新建列表；只有问题和已完成依赖的摘要被显式传入。
+messages = [{"role": "system", "content": role_rules}, {"role": "user", "content": question}]
+# 以下表示实际回传路径，省略了参数校验、限额及事件记录。
+result = await self.loop(question, state)
+summary = self.coordinator.finish(task_id, result, self.workspaces[task_id].inventory())
+```
+
+这段是帮助阅读源码的摘录式伪代码，role_rules 代表实际选择的主/子系统提示。并不是把这个片段粘贴出来就能单独运行。
+
+现在回答三个问题：
+
+1. **主想直接采用子结论？** save_report 传 finding_ids=["pg:f1"]，程序原样取出已经登记的 statement 和引用。
+2. **主想改成一个新判断？** 先 read_source(s1)，这时主 messages 才出现原文，主 seen 才增加 s1，然后提交自己的 findings。是否推理正确还需核对语义。
+3. **主想打开子 notes.md？** 当前工具不支持。主的 read_file(area="work", path="notes.md") 只会读自己的文件；核验事实应读共享 corpus 的原文。
+
+所以，简历的“隔离子 Agent 上下文”不是“主什么都看不到”，而是**不自动传探索过程；通过明确的结果契约交接；需要证据时按需回读**。共用 HTTP 客户端也不等于共用聊天记录，本项目每次 chat 都显式发送本次 loop 的 messages。
 
 ### 并发 2 和最多 4 个任务不是一回事
 
@@ -601,6 +688,13 @@ CLI demo 为 17 次模拟请求和 14 次工具调用。请求包括改写与评
 2. **提出新判断：** 先 read_source 阅读相关原文，再提交自己的 findings。例如要补充部署约束，不能仅凭子给出的引用编号，就假装自己已经看过资料。
 
 seen 可以理解成“程序给这个 Agent 记的一张已读片段清单”。主、子各有一张；收到子结论不会自动把子的清单抄给主。对应实现是：子 findings 的 source_ids 必须属于子 seen，主自己写的 findings 必须属于主 seen。
+
+| 主提交什么 | 前提 | 程序是否接受这一种引用用法 |
+| --- | --- | --- |
+| finding_ids=["pg:f1"] | 子已成功登记该结论 | 接受，保留登记的原句和出处，不要求主再读一遍 |
+| findings=[新句子，source_ids=[s1]] | 只有子读过 s1 | 拒绝，主自己的 seen 没有 s1 |
+| 同样的新句子与 s1 | 主先主动读到了 s1 | 引用资格检查通过；仍需满足其他报告契约 |
+| 内容不被 s1 支持的新句子 | 主确实读过 s1 | 可能通过结构检查，语义却错，不能称为自动验真 |
 
 `validate_evidence()` 的关键逻辑很短：
 
@@ -717,6 +811,40 @@ run-123 是示意名，真实运行使用随机 ID。工具只需要传 notes.md
 
 例如第一次写 notes.md 的内容是“待确认维护要求”，代码根据这份内容算出版本标记 v1。读文件时会同时返回正文与这个标记。编辑请求要带上“我依据的版本是 v1”，以及要替换的旧句和新句；成功后内容改变，版本也变为 v2。再有一个请求还拿着 v1，代码就拒绝，避免它用旧笔记覆盖新笔记。v1/v2 是便于讲解的名字，真实标记是 SHA-256 哈希。旧句还必须恰好出现一次，防止一条编辑误改多处。
 
+<a id="file-conflict"></a>
+### 旧版本被拒以后，怎样继续工作
+
+独立目录防“不同 Agent 写同一个文件”；版本校验防“同一个 Agent 根据旧内容提交修改”。不是解决同一个问题两次。
+
+假设 pg 的笔记有两行：`结论：待确认` 和 `费用：待确认`。下面 H1/H2/H3 是真实哈希的简称：
+
+| 时刻 | 请求或结果 | 磁盘状态 |
+| --- | --- | --- |
+| 1 | write_file 新建，expected_version="" | 写入两行，返回 H1 |
+| 2 | 基于 H1，把第一行改为“结论：可复用 PostgreSQL” | 成功，内容变成 H2 |
+| 3 | 另一个旧请求仍带 H1，要把“费用：待确认”改成“费用：资料未给出” | 旧句虽然仍存在，但当前哈希是 H2，所以拒绝，不覆盖 |
+| 4 | read_file 重新读取 | 得到新结论、旧费用行与 H2 |
+| 5 | 检查修改仍适用，重新构造 edit_file，带 H2 | 只替换费用这一行，返回 H3，新结论保留 |
+
+旧 H1 可以来自同轮发出的两个编辑请求，也可以来自模型保留的旧阅读结果；程序不负责自动保存或合并旧请求。不能只把 H1 换成 H2、盲目重放原请求：新的内容可能让原修改不再适用。`edit` 还要求 old_text 恰好出现一次；若另一条编辑已经移走或复制了这句话，会先因匹配次数失败。`write` 则先读当前字节并计算哈希，再比较 expected_version，最后写同目录临时文件并 os.replace。
+
+实际 dispatch 为避免回显资料，把多种路径/版本错误归为 `invalid_arguments_or_source` 并给通用提示；模型不一定直接看到 Python 的 Stale file version 文本。正确做法是核对路径与参数、必要时重读，在剩余轮数内修正，不是内置自动合并或无限重试。
+
+**哈希不是递增版本号。** 相同内容会得到相同哈希；内容从 A 变 B 再变回 A，也会回到原哈希。这里检查的是内容相等，不记录完整修改历史。同步的检查与替换只对本进程事件循环避免协程插入；外部进程仍可能竞争。os.replace 解决单文件替换，不使“检查版本 + 写入”成为跨进程原子 CAS，也不保证断电持久性。
+
+<a id="three-versions"></a>
+### 项目里三种版本不要混为一谈
+
+| 名称 | 什么时候生成、依据什么 | 保护的对象 | 改变后怎么办 |
+| --- | --- | --- | --- |
+| Source.version | Corpus 加载时，对源文件字节做 SHA-256 | 本次引用是哪一版原文 | 当前运行继续读自己的快照；下一次加载得到新 Source 身份 |
+| 索引快照 fingerprint | 入库/准备查询时，结合 Source ID 集合、向量模型配置与 revision、分词/schema | ES 与 Milvus 是否属于同一批资料和配置 | 要使用新快照须先 ingest；无 ready 记录则拒绝运行 |
+| 工作文件 version | 每次 read/write 对笔记完整字节做 SHA-256 | 修改是否基于当前笔记 | 旧 expected_version 被拒，重新读后再决定怎样改 |
+
+自测：只改 Embedding revision，原文没改，Source.version 不变，索引指纹变；只编辑 notes.md，工作文件版本变，不需要重建语料索引。工作笔记不是证据来源，不能写一段话再把它当成原始资料引用。
+
+索引指纹不是所有配置的总哈希：它纳入向量服务 URL、模型名与人工 revision 构成的 identity、ES 分词配置和 schema 标识，但不覆盖全部 HNSW 或查询参数。不能笼统说“改任何模型或索引参数都会自动换快照”。
+
 路径拒绝绝对路径、盘符、父目录、隐藏路径和符号链接。两个子任务都有 notes.md，但物理目录不同，因此不争抢同一文件。版本检查是在单进程同步操作内完成，不是抵御外部恶意进程竞态的分布式锁。
 
 read_file 的 area=corpus 读取启动时文本快照，area=work 读取自己的工作文件。部分行只会获得完整覆盖片段的 source_ids；不能只读标题就自动获得整篇证据资格。想引用其余片段，应再用 read_source。
@@ -732,6 +860,29 @@ read_file 的 area=corpus 读取启动时文本快照，area=work 读取自己�
 程序不提供进程/容器隔离，也不抵御恶意本地进程并发替换目录的所有竞态。它服务于可信本地用户，不应不加鉴权、上传隔离就直接公开成网络服务。
 
 ## 12. 真实模型和离线模型怎么接到同一套代码
+
+<a id="design-boundaries"></a>
+### 从“要改什么”理解模块设计
+
+先不背设计模式名称，先问：有一个需求改变时，应该改哪里，哪些代码不用跟着改？
+
+| 要发生的变化 | 修改或替换的地方 | 保持稳定的地方 |
+| --- | --- | --- |
+| 离线测试替换成真实模型 | CLI 传入 CompatibleModel 而不是 DemoModel | loop 仍调用 chat 并处理 Reply |
+| 内存演示换为 ES/Milvus | CLI 选择 retriever_factory，构造对应后端 | search 对外仍交付 Source，不让模型操作数据库客户端 |
+| 服务返回的 HTTP 字段变化 | provider/rerank 的协议转换层 | runtime 内部的 Reply、候选 ID 处理 |
+| 增加一项文件限制 | WorkFiles 内集中检查 | Agent 不必自己写路径、配额与替换逻辑 |
+| 子任务想绕过依赖 | 不接受模型文字声明，由 Coordinator.start 拒绝 | loop 仍按工具错误回填，让模型重新决策 |
+
+这几种设计分别有名字，但不是同一回事：
+
+- **依赖注入**讲“谁创建依赖”：CLI 组装真实或离线对象，再传给 ResearchRun；loop 不在内部硬编码密钥和创建 HTTP 客户端。
+- **策略替换**讲“同一职责能换哪种做法”：内存检索与持久化检索都履行 prepare/search 契约，后端不同，调用方保持不变。不代表已实现热切换或自动故障降级。
+- **适配器**讲“怎样把外部协议变成内部数据”：CompatibleModel 把服务 HTTP 响应转为 Reply/ToolCall；DashScopeReranker 把专用返回转为有序来源 ID。
+- **Supervisor/Worker**讲“怎样分工”：主保留自己做事的能力，也能委派；子只交研究结果，不能再派发或发布最终报告。
+- **显式状态机**讲“哪些转换合法”：Coordinator 的状态字段与条件检查约束任务生命周期。没有为每种状态创建一个类，因此不称为 GoF State 模式的完整实现。
+
+WorkFiles 是集中维护文件规则的封装，版本比较是一种乐观并发检查；不需要为了凑模式再加一组空类。设计的价值是改变只落在相关模块、规则有统一执行位置，而不是接口或类的数量。面试中的口头回答与替代方案见 [设计模式追问](INTERVIEW_GUIDE.md#pattern-defense)。
 
 [provider.py](../src/docresearch/provider.py) 定义 `CompatibleModel` 与 `DemoModel`。运行时只需要对方实现 `chat(messages, tools)`，并得到统一的 `Reply`。
 
