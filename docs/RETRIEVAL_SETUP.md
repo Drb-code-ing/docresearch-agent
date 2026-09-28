@@ -44,7 +44,19 @@ uv run docresearch run "比较 pgvector 和 Milvus 的部署维护约束，引�
 
 首次 ingest 把原文快照写入 ES，把真实向量写入 Milvus。两边验证通过后发布 ready manifest。重复 ingest 同一快照会返回 `reused: true` 和 `embedding_requests: 0`。
 
-run 只检查并使用已入库的快照，不重新向量化所有文档。每次 search 仍会生成查询向量。两通道各取最多 20 条，以统一 Source ID 做 RRF；正式报告与原来的主/子代理运行机制不变。
+run 只检查并使用已入库的快照，不重新向量化所有文档。基础后端为每条查询生成向量，两通道各取最多 20 条，以统一 Source ID 做 RRF。
+
+Agent 调用 search 时，外层 `AgenticSearch` 先保留原问题并生成 1 至 2 条改写查询，并发搜索后再次按 ID 融合，最多留下 8 条候选；随后重排、评估充分性，必要时补检索一次。主可以直接调用，也可以把复杂问题交给子代理。改写、评估、查询向量与重排均消耗共享请求预算。
+
+专用 DashScope 重排单独配置，三项须同时存在：
+
+```powershell
+$env:DOCRESEARCH_RERANK_URL = "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank"
+$env:DOCRESEARCH_RERANK_API_KEY = "<你的重排服务密钥>"
+$env:DOCRESEARCH_RERANK_MODEL = "qwen3-rerank"
+```
+
+代码使用 DashScope 原生请求格式，不把任意 OpenAI 兼容地址当成重排端点。未配置专用服务时，LLM 对候选排序并评估，产物的 reranker 字段标记 `llm`；配置了专用服务却失败时不会偷偷跳过。重排只改变阅读次序，不证明结论正确。
 
 ## 4. 资料更新与失败处理
 
@@ -59,6 +71,14 @@ run 只检查并使用已入库的快照，不重新向量化所有文档。每�
 | IK analyze 失败 | 安装与 ES 版本匹配的插件，或显式配置内置分词并重新入库 |
 | 双写中途失败、没有 manifest | 相同输入重跑 ingest，按确定 ID upsert，完成后才发布 |
 | 已发布快照被手动损坏 | 保留诊断；使用新 namespace 重建，不自动覆盖已发布快照 |
+| Milvus 报错指向代理端口而非 19530 | 检查 gRPC 的代理设置；本机服务可在当前终端把 localhost/127.0.0.1 加入 NO_PROXY 和 no_grpc_proxy |
+
+`DOCRESEARCH_TRUST_ENV` 只控制模型 HTTPX 客户端，不控制 Milvus 的 gRPC 客户端。如果本机服务被误送入代理，可对当前 PowerShell 显式追加直连地址，保留既有例外：
+
+```powershell
+$env:NO_PROXY = (@($env:NO_PROXY, "localhost", "127.0.0.1") | Where-Object { $_ }) -join ","
+$env:no_grpc_proxy = (@($env:no_grpc_proxy, "localhost", "127.0.0.1") | Where-Object { $_ }) -join ","
+```
 
 ready 不是分布式事务。崩溃可能留下未完成的索引/集合，但没有 ready 就不会被 run 使用；读取还核对两库 ID 集合和 ES 原文。入库约定单写者串行执行，不提供分布式锁，不支持多个入库进程同时修改同一快照。
 
@@ -76,4 +96,4 @@ uv run python -X utf8 -m docresearch.evaluation --backend es-milvus
 
 前两类测试不调用真实模型。集成测试连接默认本机 ES/Milvus，使用随机专属测试空间与合成二维向量，结束时只清理自己创建且核验归属的索引/集合。测试覆盖客户端关闭后的复用、资料删除后换快照、存储损坏拒绝读取。
 
-最后一条评测使用真实查询向量，会消耗 API 额度；先完成样例 ingest。它衡量文档覆盖，不是答案正确率。最新实测在 VALIDATION.md。
+最后一条评测使用真实查询向量，会消耗 API 额度；先完成样例 ingest。它只衡量基础后端的文档覆盖，不调用外层 AgenticSearch，不是答案正确率或完整 Agentic RAG 的评估。最新实测和真实调用阻塞记录在 VALIDATION.md。
