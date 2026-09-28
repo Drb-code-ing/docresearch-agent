@@ -57,7 +57,7 @@ async def main():
     except ValidationError:
         show("4b. Wrong type and extra field", "ValidationError (expected)")
 
-    run = ResearchRun(corpus, Path("reports"), DemoModel(), mode="deterministic-demo")
+    run = ResearchRun(corpus, Path("reports"), DemoModel(), mode="deterministic-demo", agentic=True)
     outcome = await run.run("比较 pgvector 与 Milvus 的小型知识库适用性")
     show("5. Real runtime with deterministic model", outcome.metadata)
     show(
@@ -68,7 +68,10 @@ async def main():
             if event["event"] in {"child_start", "tool_start", "finalized"}
         ],
     )
-    show("5c. Inspect these four files", str(outcome.directory))
+    show(
+        "5c. Inspect five report files and the separate workspaces directory",
+        str(outcome.directory),
+    )
 
 
 if __name__ == "__main__":

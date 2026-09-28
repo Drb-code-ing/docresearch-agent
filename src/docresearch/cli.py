@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .models import Limits
 from .provider import CompatibleModel, DemoModel
+from .rerank import DashScopeReranker
 from .retrieval import Retriever
 from .runtime import Budget, ResearchRun
 from .stores import PersistentRetriever, StoreSettings, embedding_identity
@@ -21,7 +22,9 @@ async def execute(args: argparse.Namespace) -> int:
     embed = model.embed if live and model.embedding_model else None
     persistent = args.command == "ingest" or (live and args.backend == "es-milvus")
     store = None
+    reranker = None
     try:
+        reranker = DashScopeReranker.from_env() if args.command == "run" else None
         factory = Retriever
         if persistent:
             if embed is None:
@@ -60,6 +63,8 @@ async def execute(args: argparse.Namespace) -> int:
             embed,
             "live" if live else "deterministic-demo",
             retriever_factory=factory,
+            agentic=True,
+            reranker=reranker,
         ).run(question)
         print(
             json.dumps(
@@ -78,8 +83,12 @@ async def execute(args: argparse.Namespace) -> int:
             if store is not None:
                 await store.close()
         finally:
-            if live:
-                await model.close()
+            try:
+                if reranker is not None:
+                    await reranker.close()
+            finally:
+                if live:
+                    await model.close()
 
 
 def main() -> None:
@@ -89,7 +98,7 @@ def main() -> None:
         sub = commands.add_parser(command)
         sub.add_argument("--corpus", type=Path, default=Path("examples/corpus"))
         sub.add_argument("--output", type=Path, default=Path("reports"))
-        sub.add_argument("--max-calls", type=int, default=24)
+        sub.add_argument("--max-calls", type=int, default=48)
         sub.add_argument("--timeout", type=float, default=180)
         if command == "run":
             sub.add_argument("question")
