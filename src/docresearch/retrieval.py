@@ -2,6 +2,7 @@
 
 import re
 from collections.abc import Awaitable, Callable
+from typing import Protocol
 
 import numpy as np
 from rank_bm25 import BM25Okapi
@@ -9,6 +10,22 @@ from rank_bm25 import BM25Okapi
 from .workspace import Corpus, Source
 
 Embed = Callable[[list[str]], Awaitable[list[list[float]]]]
+
+
+class RetrievalBackend(Protocol):
+    mode: str
+
+    async def prepare(self) -> None: ...
+
+    async def search(self, query: str, limit: int = 5) -> list[Source]: ...
+
+
+def reciprocal_ranks(rankings: list[list[str]], limit: int) -> list[str]:
+    scores: dict[str, float] = {}
+    for ranking in rankings:
+        for rank, key in enumerate(dict.fromkeys(ranking), 1):
+            scores[key] = scores.get(key, 0.0) + 1 / (60 + rank)
+    return sorted(scores, key=lambda key: (-scores[key], key))[:limit]
 
 
 def tokenize(text: str) -> list[str]:
@@ -41,6 +58,7 @@ class Retriever:
         # The fallback token avoids division by zero on punctuation-only corpora.
         self.bm25 = BM25Okapi([tokens or ["__empty__"] for tokens in self.tokens])
         self.embed = embed
+        self.mode = "hybrid-rrf" if embed else "bm25"
         self.vectors: np.ndarray | None = None
 
     async def prepare(self) -> None:

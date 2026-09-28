@@ -8,9 +8,11 @@ version = "0.1.0"
 description = "Bounded research agents over local documents with traceable reports"
 requires-python = ">=3.11"
 dependencies = [
+  "elasticsearch[async]>=8.17,<9",
   "httpx>=0.28,<0.29",
   "numpy>=1.26,<3",
   "pydantic>=2.10,<3",
+  "pymilvus>=2.6,<2.7",
   "rank-bm25>=0.2.2,<0.3",
 ]
 

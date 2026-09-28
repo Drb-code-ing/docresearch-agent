@@ -2,7 +2,7 @@
 
 一个小而完整的 Python 本地资料调研项目：读取 Markdown/TXT，检索证据，派发独立上下文的研究子代理，生成带来源的 Markdown 报告。
 
-项目提供完整 CLI：默认演示不联网、不需要密钥；真实模式支持独立配置的聊天与 Embedding 服务。已在自编资料上跑通真实聊天 + BM25，以及真实聊天 + Embedding + RRF 两条端到端链路。**样例验收不是大样本质量评测，不宣称性能提升或生产使用。**
+正式调研默认使用 **Elasticsearch BM25（IK 分词）+ Milvus HNSW/COSINE + RRF**，资料与向量持久化，入库与查询分离。已复用本机 Docker 服务跑通真实 Embedding、双子代理与引用报告。离线 demo 保留内存教学后端，不联网、不需要密钥。**样例验收不是大样本质量评测，不宣称性能提升或生产使用。**
 
 ## 快速运行
 
@@ -42,12 +42,11 @@ PowerShell 示例，变量仅作用于当前终端；不要把密钥写入 Git�
 $env:DOCRESEARCH_BASE_URL = "https://your-provider.example/v1"
 $env:DOCRESEARCH_API_KEY = "你的密钥"
 $env:DOCRESEARCH_MODEL = "支持 Tool Calling 的模型名称"
-uv run docresearch run "比较两份资料的部署约束，指出缺失证据" --corpus ./my-docs --output ./reports
 ```
 
 `.env.example` 只说明变量，程序**不会自动读取 `.env`**。兼容服务须支持 `/chat/completions` 的 tools/tool_calls 协议；不同提供方仍需实测。暂不支持流式输出、自动重试和 reasoning 专用参数。
 
-默认只使用本地 BM25。启用混合检索时设置 `DOCRESEARCH_EMBEDDING_MODEL`，默认复用聊天的 base URL 和 API key。若是不同服务，再成对设置：
+正式后端需要 Embedding，设置 `DOCRESEARCH_EMBEDDING_MODEL`，默认复用聊天的 base URL 和 API key。若是不同服务，再成对设置：
 
 ```powershell
 $env:DOCRESEARCH_EMBEDDING_MODEL = "你的向量模型名称"
@@ -55,7 +54,16 @@ $env:DOCRESEARCH_EMBEDDING_BASE_URL = "https://your-embedding-provider.example/v
 $env:DOCRESEARCH_EMBEDDING_API_KEY = "该向量服务的密钥"
 ```
 
-单独设置 URL 或 key 会被拒绝，避免把聊天密钥误发给另一个服务。每次启动重新建内存索引，不持久缓存向量。
+单独设置 URL 或 key 会被拒绝，避免把聊天密钥误发给另一个服务。服务和资料准备好后：
+
+```powershell
+uv run docresearch ingest --corpus ./my-docs
+uv run docresearch run "比较两份资料的部署约束，指出缺失证据" --corpus ./my-docs --output ./reports
+```
+
+默认连接本机 ES 9200、Milvus 19530，使用已有 IK 插件。部署、认证、分词配置及更新策略见 [ES + Milvus 使用说明](docs/RETRIEVAL_SETUP.md)。重复 ingest 会核验并复用已有快照，不重复生成文档向量；新增、修改、删除资料或更换向量模型后，需要重新 ingest。run 不自动重建，不静默降级。
+
+要运行旧的内存对照模式，显式使用 `run --backend memory`；不设 Embedding 时为 rank-bm25，设置后为内存余弦 + RRF。离线 demo 和教学脚本也使用这套后端。
 
 HTTPX 默认读取环境配置，在 Windows 上也可能采用系统代理，即使没有 `HTTPS_PROXY`。如果代理不可达而提供方允许直连，可在当前终端设置 `$env:DOCRESEARCH_TRUST_ENV = "false"`。这会禁用环境/系统代理与环境证书配置，**仍开启 TLS 证书校验**；需要企业代理或自定义 CA 时应保留默认 `true`。程序不会自动切换端点、降低 TLS 安全性或静默退回 BM25。
 
@@ -70,7 +78,8 @@ uv run docresearch run "你的问题" --max-calls 24 --timeout 180
 ## 项目范围
 
 - CLI，本地资料目录与独立报告目录。
-- BM25 关键词检索；配置真实 Embedding 服务后可启用向量 + BM25 的 RRF 混合检索。
+- ES 执行 BM25 与 IK 分词，Milvus 持久化向量并使用 HNSW/COSINE，按统一 Source ID 做 RRF。
+- 版本化入库、幂等复用、双写完成后发布 ready manifest；读取核对来源，不使用半成品索引。
 - Tool Calling 主循环，子代理只读，主代理统一写报告。
 - 总调用次数、子代理步数、并发数、单次调用及任务超时。
 - 离线演示与自动化测试。离线模式是确定性脚本，不代表真实模型效果。
@@ -96,6 +105,8 @@ uv run python -X utf8 examples/walkthrough.py
 uv run python -X utf8 -m docresearch.evaluation
 # 配置好向量服务后才运行下一条，会发送样例并消耗向量 API 额度：
 uv run python -X utf8 -m docresearch.evaluation --hybrid
+# 已入库时，测试正式 ES + Milvus 后端：
+uv run python -X utf8 -m docresearch.evaluation --backend es-milvus
 ```
 
 - [详细项目理解文档](docs/PROJECT_UNDERSTANDING.md)：用同一个问题，从 Python 启动、资料变片段，到检索、工具循环、子代理与报告逐步讲解。

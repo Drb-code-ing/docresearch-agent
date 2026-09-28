@@ -11,6 +11,7 @@ from pydantic import Field, TypeAdapter
 from .models import Contract, ShortText
 from .provider import CompatibleModel
 from .retrieval import Retriever
+from .stores import PersistentRetriever, StoreSettings, embedding_identity
 from .workspace import Corpus, json_text
 
 
@@ -45,7 +46,9 @@ def summarize(rows: list[dict]) -> dict:
     }
 
 
-async def evaluate(corpus: Corpus, cases: list[Case], embed=None) -> dict:
+async def evaluate(
+    corpus: Corpus, cases: list[Case], embed=None, retriever_factory=Retriever
+) -> dict:
     if not 1 <= len(cases) <= 40:
         raise ValueError("Use between 1 and 40 evaluation cases")
     paths = {document["path"] for document in corpus.documents}
@@ -59,7 +62,7 @@ async def evaluate(corpus: Corpus, cases: list[Case], embed=None) -> dict:
         async with asyncio.timeout(30):
             return await embed(texts)
 
-    retriever = Retriever(corpus, measured_embed if embed else None)
+    retriever = retriever_factory(corpus, measured_embed if embed else None)
     started = time.monotonic()
     rows = []
     async with asyncio.timeout(180):
@@ -74,7 +77,7 @@ async def evaluate(corpus: Corpus, cases: list[Case], embed=None) -> dict:
                 }
             )
     return {
-        "mode": "hybrid-rrf" if embed else "bm25",
+        "mode": retriever.mode,
         "top_k_chunks": 2,
         "document_count": len(corpus.documents),
         "chunk_count": len(corpus.sources),
@@ -90,20 +93,38 @@ async def execute(args):
         json.loads(args.cases.read_text(encoding="utf-8"))
     )
     corpus = Corpus(args.corpus)
-    model = CompatibleModel.from_env() if args.hybrid else None
+    model = CompatibleModel.from_env() if args.hybrid or args.backend == "es-milvus" else None
+    store = None
     try:
         if model and not model.embedding_model:
             raise ValueError("Hybrid evaluation requires an embedding model")
-        return await evaluate(corpus, cases, model.embed if model else None)
+        factory = Retriever
+        if args.backend == "es-milvus":
+            settings = StoreSettings.from_env()
+            identity = embedding_identity(
+                model.embedding_base_url, model.embedding_model, settings.embedding_revision
+            )
+
+            def factory(corpus, embed):
+                nonlocal store
+                store = PersistentRetriever(corpus, embed, identity, settings)
+                return store
+
+        return await evaluate(corpus, cases, model.embed if model else None, factory)
     finally:
-        if model:
-            await model.close()
+        try:
+            if store:
+                await store.close()
+        finally:
+            if model:
+                await model.close()
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--corpus", type=Path, default=Path("examples/corpus"))
     parser.add_argument("--cases", type=Path, default=Path("examples/retrieval_cases.json"))
+    parser.add_argument("--backend", choices=["memory", "es-milvus"], default="memory")
     parser.add_argument(
         "--hybrid", action="store_true", help="Send sample text to embedding service"
     )

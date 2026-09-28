@@ -46,6 +46,7 @@ class CompatibleModel:
             raise ValueError("API key and chat model are required")
         self.model = model
         self.embedding_model = embedding_model
+        self.embedding_base_url = embedding_base_url or base_url
         self.client = httpx.AsyncClient(
             base_url=base_url.rstrip("/") + "/",
             headers={"Authorization": f"Bearer {api_key}"},

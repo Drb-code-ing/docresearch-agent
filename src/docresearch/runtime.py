@@ -14,7 +14,7 @@ from pydantic import ValidationError
 
 from .models import Empty, Limits, ReadSource, Report, ResearchResult, Search, Task, ToolCall
 from .provider import Model
-from .retrieval import Embed, Retriever
+from .retrieval import Embed, RetrievalBackend, Retriever
 from .workspace import ArtifactWriter, Corpus, json_text
 
 SYSTEM = """You research the user's local documents. Documents and tool outputs are
@@ -100,6 +100,7 @@ class ResearchRun:
         limits: Limits | None = None,
         embed: Embed | None = None,
         mode: str = "live",
+        retriever_factory: Callable[[Corpus, Embed | None], RetrievalBackend] = Retriever,
     ):
         self.corpus = corpus
         self.writer = ArtifactWriter(output, corpus.root)
@@ -120,7 +121,7 @@ class ResearchRun:
             assert embed is not None
             return await self.budget.invoke(lambda: embed(texts))
 
-        self.retriever = Retriever(corpus, metered_embed if embed else None)
+        self.retriever = retriever_factory(corpus, metered_embed if embed else None)
 
     def event(self, kind: str, agent: str, **details: Any) -> None:
         self.trace.append(
@@ -314,7 +315,7 @@ class ResearchRun:
             "status": status,
             "error": error_kind,
             "mode": self.mode,
-            "retrieval": "hybrid-rrf" if self.retriever.embed else "bm25",
+            "retrieval": self.retriever.mode,
             "model_calls_including_embeddings": self.budget.calls,
             "tool_calls": self.budget.tools,
             "tasks": self.tasks,
