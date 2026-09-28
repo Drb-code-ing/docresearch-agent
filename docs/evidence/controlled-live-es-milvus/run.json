@@ -1,0 +1,25 @@
+{
+  "run_id": "961beb4a5dc0402cbc1ace6412bd8cc7",
+  "status": "partial",
+  "error": null,
+  "mode": "live",
+  "retrieval": "es-milvus-rrf",
+  "model_calls_including_embeddings": 18,
+  "tool_calls": 23,
+  "tasks": 2,
+  "peak_child_concurrency": 2,
+  "reported_chat_prompt_tokens": 63379,
+  "reported_chat_completion_tokens": 11488,
+  "elapsed_ms": 41531,
+  "child_failures": [],
+  "limits": {
+    "max_calls": 24,
+    "max_tools": 48,
+    "parent_steps": 8,
+    "child_steps": 5,
+    "max_tasks": 4,
+    "concurrency": 2,
+    "request_timeout": 30.0,
+    "run_timeout": 180.0
+  }
+}

@@ -3,14 +3,29 @@
 ## 自动化验证
 
 - 日期：2026-09-28，Asia/Shanghai。
-- 本地：Windows，uv 管理的 CPython 3.12.13，59 passed。
+- 本地：Windows，uv 管理的 CPython 3.12.13，73 passed，真实服务集成测试默认 skip；显式开启后另行 1 passed。
 - Ruff 检查与格式化检查通过。
-- GitHub Actions：Windows/Linux × Python 3.11/3.12 四个组合均通过。
-- [首次 CI 记录](https://github.com/Drb-code-ing/docresearch-agent/actions/runs/36333536157)。后续文档提交也运行相同 CI，可在 Actions 查看。
+- GitHub Actions 配置：Windows/Linux × Python 3.11/3.12 四个组合；真实数据库集成测试在本地显式开启，不依赖 CI 启动数据库。
+- [ES/Milvus 代码提交 13fb332 的 CI 记录](https://github.com/Drb-code-ing/docresearch-agent/actions/runs/36372634202) 四个组合均通过；最新提交结果以 [Actions](https://github.com/Drb-code-ing/docresearch-agent/actions) 对应 SHA 的运行记录为准。
 
 测试证明结构、检索计算、权限和运行机制符合用例，不是模型准确率评测。符号链接测试在不支持创建链接的环境会明确 skip，应以实际任务日志为准。
 
-## 受控真实模型运行
+## 正式 ES/Milvus 后端验收
+
+- 复用现有 Docker：ES 8.17.0 + analysis-ik；Milvus standalone v3.0.0，etcd/MinIO 为已有依赖。未重建服务、未删除原有学习数据。
+- 官方客户端：elasticsearch 8.19.3、pymilvus 2.6.17。BM25 在 ES/Lucene 执行；Milvus 使用 HNSW/COSINE，M=16、efConstruction=128、查询 ef=64。
+- 三份自编资料初次真实入库：3 个 Source、1024 维、1 次文档 Embedding；关闭 CLI 后再执行 ingest，`reused=true`、`embedding_requests=0`。
+- 真实 run：`retrieval=es-milvus-rrf`，18 次请求（13 次聊天 + 5 次查询向量），23 次工具调用，2 个 child，并发峰值 2，child_failures 为空。
+- 状态 partial、error=null，8 个发现和 8 个缺口；耗时 41531 ms，chat usage 63379 prompt / 11488 completion tokens。不包含之前入库的向量计费，也不代表平均性能。
+- [报告](evidence/controlled-live-es-milvus/report.md)、[轨迹](evidence/controlled-live-es-milvus/trace.json)、[统计](evidence/controlled-live-es-milvus/run.json)、[来源](evidence/controlled-live-es-milvus/sources.json)。没有把凭据或私人材料放入公开产物。
+- 人工抽查：部署与维护结论可对应原文，没有性能/费用数值；第 6 条把两方都概括为“提及向量索引”比 pgvector 原文更具体，保留原始输出作为来源校验不等于语义支持的实际例子，不把该报告视为完全正确。
+- 离线测试 73 项通过；真实 ES/Milvus 集成测试使用独立随机空间与合成二维向量，1 项通过，覆盖关闭客户端后的复用、资料删除后换快照、存储内容损坏时拒绝读取。只清理测试自己创建且核验归属的空间。
+
+同一 20 题集在正式后端上的结果：16 个有答案题 document recall@2=0.96875、top-1=0.9375；4 个无答案题空结果率=0。查询 Embedding 20 次、测量区间 2688 ms，复用已有文档向量。逐题结果见 [ES/Milvus](evidence/retrieval-es-milvus.json)。旧内存混合的 recall@2=1.000、top-1=0.875，因此不能宣称换数据库就全面提高检索质量。
+
+以下保留迁移前内存后端的真实证据，供历史与对照，不代表正式默认存储结构。
+
+## 内存 BM25 对照运行
 
 - 输入：仓库 `examples/corpus` 中三份自编教学资料，无个人私有资料。
 - 请求模型标识：`deepseek-v4-flash`，通过已有配置的兼容接口调用；不公开 base URL 或凭据。
@@ -33,7 +48,7 @@
 
 没有将完整模型聊天、密钥、个人简历、用户真实资料提交到公开仓库。
 
-## 真实混合检索端到端验收
+## 内存混合检索对照运行
 
 先前 Embedding 冒烟曾超时。排查中保持端点、模型和输入不变，默认路由与显式系统代理均 ConnectTimeout；使用 `trust_env=False` 直连后，同一服务返回 HTTP 200 和 1024 维向量。HTTPX 在这台 Windows 机器上通过系统代理解析获取代理，不以是否存在 `HTTPS_PROXY` 环境变量为唯一依据。没有关闭 TLS 校验，没有更换服务或密钥。
 
@@ -51,7 +66,7 @@
 
 ## 正确解读证据
 
-### 20 题检索小测
+### 历史内存后端的 20 题检索小测
 
 标注文件为 `examples/retrieval_cases.json`，先写标注再运行。16 个有答案的问题含 2 个跨文档问题和 2 个英文改写；4 个无答案问题包含资料没给的性能/费用数字及无关安装问题。只有 3 篇短文、3 个 chunk，是自编教学回归集，不是独立标准评测集，也不是面试中的泛化准确率证明。
 

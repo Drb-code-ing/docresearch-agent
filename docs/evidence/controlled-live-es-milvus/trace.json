@@ -1,0 +1,416 @@
+[
+  {
+    "event": "model_start",
+    "agent": "coordinator",
+    "elapsed_ms": 78,
+    "step": 1
+  },
+  {
+    "event": "model_end",
+    "agent": "coordinator",
+    "elapsed_ms": 1500,
+    "step": 1,
+    "prompt_tokens": 1069,
+    "completion_tokens": 263
+  },
+  {
+    "event": "tool_start",
+    "agent": "coordinator",
+    "elapsed_ms": 1500,
+    "tool": "list_documents"
+  },
+  {
+    "event": "tool_end",
+    "agent": "coordinator",
+    "elapsed_ms": 1500,
+    "tool": "list_documents"
+  },
+  {
+    "event": "tool_start",
+    "agent": "coordinator",
+    "elapsed_ms": 1500,
+    "tool": "search"
+  },
+  {
+    "event": "tool_end",
+    "agent": "coordinator",
+    "elapsed_ms": 1828,
+    "tool": "search"
+  },
+  {
+    "event": "model_start",
+    "agent": "coordinator",
+    "elapsed_ms": 1828,
+    "step": 2
+  },
+  {
+    "event": "model_end",
+    "agent": "coordinator",
+    "elapsed_ms": 4219,
+    "step": 2,
+    "prompt_tokens": 2221,
+    "completion_tokens": 374
+  },
+  {
+    "event": "tool_start",
+    "agent": "coordinator",
+    "elapsed_ms": 4219,
+    "tool": "task"
+  },
+  {
+    "event": "child_start",
+    "agent": "research-1",
+    "elapsed_ms": 4219
+  },
+  {
+    "event": "model_start",
+    "agent": "research-1",
+    "elapsed_ms": 4219,
+    "step": 1
+  },
+  {
+    "event": "tool_start",
+    "agent": "coordinator",
+    "elapsed_ms": 4219,
+    "tool": "task"
+  },
+  {
+    "event": "child_start",
+    "agent": "research-2",
+    "elapsed_ms": 4219
+  },
+  {
+    "event": "model_start",
+    "agent": "research-2",
+    "elapsed_ms": 4219,
+    "step": 1
+  },
+  {
+    "event": "model_end",
+    "agent": "research-2",
+    "elapsed_ms": 5078,
+    "step": 1,
+    "prompt_tokens": 1004,
+    "completion_tokens": 99
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-2",
+    "elapsed_ms": 5078,
+    "tool": "list_documents"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-2",
+    "elapsed_ms": 5078,
+    "tool": "list_documents"
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-2",
+    "elapsed_ms": 5078,
+    "tool": "search"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-2",
+    "elapsed_ms": 5203,
+    "tool": "search"
+  },
+  {
+    "event": "model_start",
+    "agent": "research-2",
+    "elapsed_ms": 5203,
+    "step": 2
+  },
+  {
+    "event": "model_end",
+    "agent": "research-1",
+    "elapsed_ms": 5203,
+    "step": 1,
+    "prompt_tokens": 1012,
+    "completion_tokens": 197
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-1",
+    "elapsed_ms": 5203,
+    "tool": "list_documents"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-1",
+    "elapsed_ms": 5203,
+    "tool": "list_documents"
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-1",
+    "elapsed_ms": 5203,
+    "tool": "search"
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-1",
+    "elapsed_ms": 5203,
+    "tool": "search"
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-1",
+    "elapsed_ms": 5219,
+    "tool": "search"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-1",
+    "elapsed_ms": 5328,
+    "tool": "search"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-1",
+    "elapsed_ms": 5437,
+    "tool": "search"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-1",
+    "elapsed_ms": 5453,
+    "tool": "search"
+  },
+  {
+    "event": "model_start",
+    "agent": "research-1",
+    "elapsed_ms": 5453,
+    "step": 2
+  },
+  {
+    "event": "model_end",
+    "agent": "research-2",
+    "elapsed_ms": 6203,
+    "step": 2,
+    "prompt_tokens": 1992,
+    "completion_tokens": 151
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-2",
+    "elapsed_ms": 6203,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-2",
+    "elapsed_ms": 6203,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-2",
+    "elapsed_ms": 6203,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-2",
+    "elapsed_ms": 6203,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_start",
+    "agent": "research-2",
+    "elapsed_ms": 6203,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_end",
+    "agent": "research-2",
+    "elapsed_ms": 6203,
+    "tool": "read_source"
+  },
+  {
+    "event": "model_start",
+    "agent": "research-2",
+    "elapsed_ms": 6203,
+    "step": 3
+  },
+  {
+    "event": "model_end",
+    "agent": "research-2",
+    "elapsed_ms": 11484,
+    "step": 3,
+    "prompt_tokens": 2871,
+    "completion_tokens": 1229
+  },
+  {
+    "event": "finalized",
+    "agent": "research-2",
+    "elapsed_ms": 11484,
+    "findings": 8
+  },
+  {
+    "event": "child_end",
+    "agent": "research-2",
+    "elapsed_ms": 11484,
+    "status": "completed"
+  },
+  {
+    "event": "tool_end",
+    "agent": "coordinator",
+    "elapsed_ms": 11484,
+    "tool": "task"
+  },
+  {
+    "event": "model_end",
+    "agent": "research-1",
+    "elapsed_ms": 11828,
+    "step": 2,
+    "prompt_tokens": 3494,
+    "completion_tokens": 1600
+  },
+  {
+    "event": "model_start",
+    "agent": "research-1",
+    "elapsed_ms": 11828,
+    "step": 3
+  },
+  {
+    "event": "model_end",
+    "agent": "research-1",
+    "elapsed_ms": 15828,
+    "step": 3,
+    "prompt_tokens": 5133,
+    "completion_tokens": 927
+  },
+  {
+    "event": "finalized",
+    "agent": "research-1",
+    "elapsed_ms": 15828,
+    "findings": 8
+  },
+  {
+    "event": "child_end",
+    "agent": "research-1",
+    "elapsed_ms": 15828,
+    "status": "completed"
+  },
+  {
+    "event": "tool_end",
+    "agent": "coordinator",
+    "elapsed_ms": 15828,
+    "tool": "task"
+  },
+  {
+    "event": "model_start",
+    "agent": "coordinator",
+    "elapsed_ms": 15828,
+    "step": 3
+  },
+  {
+    "event": "model_end",
+    "agent": "coordinator",
+    "elapsed_ms": 20734,
+    "step": 3,
+    "prompt_tokens": 6007,
+    "completion_tokens": 1270
+  },
+  {
+    "event": "model_start",
+    "agent": "coordinator",
+    "elapsed_ms": 20734,
+    "step": 4
+  },
+  {
+    "event": "model_end",
+    "agent": "coordinator",
+    "elapsed_ms": 25672,
+    "step": 4,
+    "prompt_tokens": 7301,
+    "completion_tokens": 1001
+  },
+  {
+    "event": "tool_start",
+    "agent": "coordinator",
+    "elapsed_ms": 25672,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_end",
+    "agent": "coordinator",
+    "elapsed_ms": 25672,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_start",
+    "agent": "coordinator",
+    "elapsed_ms": 25672,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_end",
+    "agent": "coordinator",
+    "elapsed_ms": 25672,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_start",
+    "agent": "coordinator",
+    "elapsed_ms": 25672,
+    "tool": "read_source"
+  },
+  {
+    "event": "tool_end",
+    "agent": "coordinator",
+    "elapsed_ms": 25672,
+    "tool": "read_source"
+  },
+  {
+    "event": "model_start",
+    "agent": "coordinator",
+    "elapsed_ms": 25672,
+    "step": 5
+  },
+  {
+    "event": "model_end",
+    "agent": "coordinator",
+    "elapsed_ms": 30203,
+    "step": 5,
+    "prompt_tokens": 9030,
+    "completion_tokens": 1255
+  },
+  {
+    "event": "model_start",
+    "agent": "coordinator",
+    "elapsed_ms": 30203,
+    "step": 6
+  },
+  {
+    "event": "model_end",
+    "agent": "coordinator",
+    "elapsed_ms": 36047,
+    "step": 6,
+    "prompt_tokens": 10309,
+    "completion_tokens": 1600
+  },
+  {
+    "event": "model_start",
+    "agent": "coordinator",
+    "elapsed_ms": 36047,
+    "step": 7
+  },
+  {
+    "event": "model_end",
+    "agent": "coordinator",
+    "elapsed_ms": 41531,
+    "step": 7,
+    "prompt_tokens": 11936,
+    "completion_tokens": 1522
+  },
+  {
+    "event": "finalized",
+    "agent": "coordinator",
+    "elapsed_ms": 41531,
+    "findings": 8
+  }
+]
