@@ -1,0 +1,29 @@
+{
+  "run_id": "a28e423a634541128b16858b94984676",
+  "status": "partial",
+  "error": null,
+  "mode": "live",
+  "retrieval": "es-milvus-rrf",
+  "model_calls_including_embeddings": 62,
+  "tool_calls": 34,
+  "tasks": 3,
+  "peak_child_concurrency": 2,
+  "reported_chat_prompt_tokens": 134598,
+  "reported_chat_completion_tokens": 26248,
+  "elapsed_ms": 94656,
+  "child_failures": [],
+  "limits": {
+    "max_calls": 80,
+    "max_tools": 64,
+    "parent_steps": 10,
+    "child_steps": 10,
+    "max_tasks": 4,
+    "concurrency": 2,
+    "request_timeout": 30.0,
+    "run_timeout": 360.0
+  },
+  "architecture": "adaptive-supervisor-workers",
+  "search_pipeline": "rewrite-rerank-grade-retry",
+  "reranker": "dashscope+llm",
+  "workspaces": "workspaces/a28e423a634541128b16858b94984676"
+}

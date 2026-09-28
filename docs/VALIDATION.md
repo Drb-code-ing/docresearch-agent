@@ -33,13 +33,24 @@
 - [报告](evidence/adaptive-simple/report.md)、[统计](evidence/adaptive-simple/run.json)、[轨迹](evidence/adaptive-simple/trace.json)、[任务表](evidence/adaptive-simple/tasks.json)、[来源](evidence/adaptive-simple/sources.json)。工具轨迹记录文件操作成功，工作区正文没有额外发布。
 - 人工抽查：部署和维护结论能对应样例；第一条将“业务字段过滤与 SQL 查询组合”进一步解释为“同一条关系查询中”，比原文略具体。保留原始报告，不把引用 ID 有效当成每句话已被严格证明。
 
-### 真实复杂任务：未通过端到端验收
+### 真实复杂任务：一例端到端完成，保留证据缺口
+
+- 用户充值并授权复测后，仅用相同的三份自编资料运行；本次没有再出现 HTTP 402。请求模型标识为 deepseek-v4-flash，检索为 `es-milvus-rrf`，重排为 `dashscope+llm`。这证明接口此次可用，不能反向确认此前 402 的具体账户原因。
+- `run_id=a28e423a634541128b16858b94984676`，`partial`、`error=null`；3 个子任务全部 `completed`，无子任务失败，并发峰值 2。主先规划两个研究任务，再派发依赖二者的核验任务，最后提交报告。
+- 两个研究者分别在私有工作区写入、读回并按版本编辑 `notes.md`；trace 中对应工具执行成功。核验任务在前两者结束后启动。报告采用登记的子任务发现，保留费用、性能、部署细节等缺口，因此 `partial` 不代表这次执行失败。
+- 62 次外部请求计数（包含聊天、改写、评估、查询向量与专用重排），34 次工具调用，94656 ms；提供方 chat usage 为 134598 prompt / 26248 completion tokens。该计数不是金额，也不包括先前文档入库费用。
+- 本次显式设置 `--max-calls 80 --timeout 360`，默认请求上限仍为 48。62 次超过默认预算；本次没有再付费运行 48 次预算的同题对照，不能宣称默认配置足够，更不能据此宣称任意复杂任务稳定完成。
+- [报告](evidence/adaptive-complex-success/report.md)、[统计](evidence/adaptive-complex-success/run.json)、[轨迹](evidence/adaptive-complex-success/trace.json)、[任务表](evidence/adaptive-complex-success/tasks.json)、[来源](evidence/adaptive-complex-success/sources.json)、[输入与阅读说明](evidence/adaptive-complex-success/README.md)。保留原始产物，不上传密钥、完整聊天或私有笔记正文。
+- 人工抽查发现一个值得学习的问题：`milvus_study:f6` 把笔记版本号当作研究结论，并引用不能证明版本号的技术资料。核验子任务指出不匹配，主没有选入这条发现，但最终报告仍保留相关缺口。来源 ID 校验只能证明来源已读，不能单独证明结论正确；这次模型核验有效不等于以后都能发现此类问题。
+- 核验子任务还出现连续多轮未结束和一次终止结果拒绝，之后才修正提交。最终成功没有消除这段请求开销，报告也有重复结论；尚未验证跨题材质量、默认预算充分性和多次运行稳定性。
+
+### 历史失败：预算耗尽与 HTTP 402
 
 - 首次尝试记录 80 次请求、51 次工具调用、4 个任务、并发峰值 2；其中 2 个任务完成、2 个任务 StepLimit，总体 `budget_exhausted`，没有 report.md。
 - [运行统计](evidence/adaptive-complex-failed/run.json)、[轨迹](evidence/adaptive-complex-failed/trace.json)、[任务状态](evidence/adaptive-complex-failed/tasks.json)。错误包括路径使用与末轮结果校验失败，引发反复尝试和预算消耗。
 - 随后补充路径指引、参数字段反馈、末两轮收束提醒，并把子轮数默认值改为 10；这些修复通过离线回归。默认总请求预算仍是 48，失败试验中的 80 是显式覆盖，不能靠提高上限宣称解决问题。
 - 修复后复测首请求返回 HTTP 402，0 工具、0 子任务，已停止继续调用。[统计](evidence/adaptive-retest-402/run.json)、[含 HTTP 状态的轨迹](evidence/adaptive-retest-402/trace.json)。这表明提供方拒绝请求；没有足够信息判定具体余额或账户原因。
-- 因此：新架构已实现并经确定性测试验证，真实简单任务通过；复杂真实模型研究仍需提供方恢复后复测，不能宣称稳定完成。用更多、更长的独立资料评估质量也尚未完成。
+- 上述两次记录保留为历史故障；充值后的新记录补足一例复杂真实运行证据，没有覆盖或改写失败记录。用更多、更长的独立资料评估质量仍未完成。
 
 上述文件是本机运行产物，不是提供方签名证明。它们记录请求模式和程序事件，不额外证明服务端实际模型身份。
 

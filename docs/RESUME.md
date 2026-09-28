@@ -36,7 +36,7 @@ Python · asyncio · Pydantic · Tool Calling · Elasticsearch · Milvus · Agen
 | 工具契约与预算 | models.py / runtime.py: Budget | test_runtime.py |
 | 提供方接口 | provider.py: CompatibleModel | test_provider.py 的 MockTransport |
 
-上述项目描述对应实际实现，不等于宣称所有真实模型任务都稳定完成。已复用本机 ES+IK、Milvus，真实向量入库和重连复用已有验证；新版真实简单任务完成检索、读写和报告且未派发子代理。新版复杂流程有确定性测试，真实首次运行耗尽预算，修复后复测遇到 HTTP 402，尚未通过复杂真实验收。完整记录见 [VALIDATION.md](VALIDATION.md)。
+上述项目描述对应实际实现，不等于宣称所有真实模型任务都稳定完成。已复用本机 ES+IK、Milvus，真实向量入库和重连复用已有验证；真实简单任务完成检索、读写和报告且未派发子代理。一例真实复杂任务完成两个并行研究任务和一个依赖核验任务，生成保留资料缺口的报告；实际使用 62 次请求，显式上限为 80，不证明默认 48 次预算足够。历史预算耗尽和 HTTP 402 记录仍保留。完整记录见 [VALIDATION.md](VALIDATION.md)。
 
 20 题小测只衡量基础检索后端，不覆盖完整 Agentic RAG，不代表大样本质量或生产规模。没有前端、OCR、在线逐文件增量同步或分布式事务。“本地资料”也不意味着 live 模式不外发文本。
 

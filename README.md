@@ -2,7 +2,7 @@
 
 一个 Python 资料调研与文件工作流项目：主 Agent 可直接处理简单任务，复杂任务按依赖派发独立上下文的子 Agent；主子均可在私有工作目录读写编辑文件，最终生成带来源的 Markdown 报告。
 
-正式检索采用 **Elasticsearch IK/BM25 + Milvus HNSW/COSINE + RRF**，外层包含查询改写、相关性排序、证据判断和最多一次补检索。专用 DashScope reranker 可显式配置。离线 demo 不联网、不需要密钥。当前真实简单任务已通过；新复杂链路曾耗尽预算，修正后复测被模型 HTTP 402 阻断，不能声称已完成真实复杂验收。详见 [验收证据](docs/VALIDATION.md)。
+正式检索采用 **Elasticsearch IK/BM25 + Milvus HNSW/COSINE + RRF**，外层包含查询改写、相关性排序、证据判断和最多一次补检索。专用 DashScope reranker 可显式配置。离线 demo 不联网、不需要密钥。真实简单任务与一例复杂任务已生成报告；复杂样例完成两个并行研究任务和一个依赖核验任务，保留资料缺口。该次使用 80 次请求上限，实际消耗 62 次，尚不证明默认 48 次预算足够或多次运行稳定。详见 [验收证据](docs/VALIDATION.md)。
 
 ## 快速运行
 
