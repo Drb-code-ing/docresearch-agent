@@ -32,7 +32,7 @@ docresearch demo
 | `trace.json` | 模型/工具调用与子任务阶段、耗时、错误分类 |
 | `run.json` | 状态、调用计数、并发峰值和配置上限 |
 
-演示返回 `partial` 是预期结果：它明确留下性能对比和真实推理缺口。`completed/partial` 的 CLI 退出码为 0，`failed/budget_exhausted/timeout` 为 1；严格验收时检查 `run.json` 的 status、error、child_failures，再核对报告缺口与原文。离线 fixture 固定为 6 次模拟调用，不等于真实任务的请求数；真实样例的 10 次请求见 [验收证据](docs/VALIDATION.md)。
+演示返回 `partial` 是预期结果：它明确留下性能对比和真实推理缺口。`completed/partial` 的 CLI 退出码为 0，`failed/budget_exhausted/timeout` 为 1；严格验收时检查 `run.json` 的 status、error、child_failures，再核对报告缺口与原文。离线 fixture 固定为 6 次模拟调用，不等于真实任务的请求数；正式 ES/Milvus 样例为 18 次请求（13 次聊天 + 5 次查询向量），见 [验收证据](docs/VALIDATION.md)。
 
 ## 真实模型模式
 
@@ -67,7 +67,7 @@ uv run docresearch run "比较两份资料的部署约束，指出缺失证据" 
 
 HTTPX 默认读取环境配置，在 Windows 上也可能采用系统代理，即使没有 `HTTPS_PROXY`。如果代理不可达而提供方允许直连，可在当前终端设置 `$env:DOCRESEARCH_TRUST_ENV = "false"`。这会禁用环境/系统代理与环境证书配置，**仍开启 TLS 证书校验**；需要企业代理或自定义 CA 时应保留默认 `true`。程序不会自动切换端点、降低 TLS 安全性或静默退回 BM25。
 
-**隐私边界：live 模式会将问题、检索片段和子代理结果发送给配置的模型提供方；开启 Embedding 后会发送整个资料快照的文本块。这里的“本地”指资料来源与报告落盘，不代表推理不出设备。** 先用自编样例验证，勿直接投入隐私或无权处理的资料。
+**隐私边界：live 模式会将问题、检索片段和子代理结果发送给配置的模型提供方。首次 ingest 新快照会把全部文本块发给向量服务；复用快照后，run 只为查询生成向量。内存对照模式则在每次 run 准备时生成文档向量。这里的“本地”指资料来源与报告落盘，不代表推理不出设备。** 先用自编样例验证，勿直接投入隐私或无权处理的资料。
 
 ```bash
 uv run docresearch run "你的问题" --max-calls 24 --timeout 180
