@@ -1,8 +1,8 @@
 # DocResearch Agent
 
-一个小而完整的 Python 本地资料调研项目：读取 Markdown/TXT，检索证据，派发独立上下文的研究子代理，生成带来源的 Markdown 报告。
+一个 Python 资料调研与文件工作流项目：主 Agent 可直接处理简单任务，复杂任务按依赖派发独立上下文的子 Agent；主子均可在私有工作目录读写编辑文件，最终生成带来源的 Markdown 报告。
 
-正式调研默认使用 **Elasticsearch BM25（IK 分词）+ Milvus HNSW/COSINE + RRF**，资料与向量持久化，入库与查询分离。已复用本机 Docker 服务跑通真实 Embedding、双子代理与引用报告。离线 demo 保留内存教学后端，不联网、不需要密钥。**样例验收不是大样本质量评测，不宣称性能提升或生产使用。**
+正式检索采用 **Elasticsearch IK/BM25 + Milvus HNSW/COSINE + RRF**，外层包含查询改写、相关性排序、证据判断和最多一次补检索。专用 DashScope reranker 可显式配置。离线 demo 不联网、不需要密钥。当前真实简单任务已通过；新复杂链路曾耗尽预算，修正后复测被模型 HTTP 402 阻断，不能声称已完成真实复杂验收。详见 [验收证据](docs/VALIDATION.md)。
 
 ## 快速运行
 
@@ -31,8 +31,9 @@ docresearch demo
 | `sources.json` | 被引用的原文快照，含相对路径和片段 ID |
 | `trace.json` | 模型/工具调用与子任务阶段、耗时、错误分类 |
 | `run.json` | 状态、调用计数、并发峰值和配置上限 |
+| `tasks.json` | 任务依赖、状态、精简研究结果和文件元数据 |
 
-演示返回 `partial` 是预期结果：它明确留下性能对比和真实推理缺口。`completed/partial` 的 CLI 退出码为 0，`failed/budget_exhausted/timeout` 为 1；严格验收时检查 `run.json` 的 status、error、child_failures，再核对报告缺口与原文。离线 fixture 固定为 6 次模拟调用，不等于真实任务的请求数；正式 ES/Milvus 样例为 18 次请求（13 次聊天 + 5 次查询向量），见 [验收证据](docs/VALIDATION.md)。
+demo 返回 partial 是预期的教学缺口，不是崩溃。固定 17 次模拟请求、14 次工具调用，覆盖计划、子任务、检索、文件创建/读回/编辑与报告。completed/partial 退出码 0，其余运行状态为 1。工作笔记位于 reports/workspaces/<run_id>/<agent_id>/，不混入原始资料。
 
 ## 真实模型模式
 
@@ -70,17 +71,19 @@ HTTPX 默认读取环境配置，在 Windows 上也可能采用系统代理，�
 **隐私边界：live 模式会将问题、检索片段和子代理结果发送给配置的模型提供方。首次 ingest 新快照会把全部文本块发给向量服务；复用快照后，run 只为查询生成向量。内存对照模式则在每次 run 准备时生成文档向量。这里的“本地”指资料来源与报告落盘，不代表推理不出设备。** 先用自编样例验证，勿直接投入隐私或无权处理的资料。
 
 ```bash
-uv run docresearch run "你的问题" --max-calls 24 --timeout 180
+uv run docresearch run "你的问题" --max-calls 48 --timeout 180
 ```
 
-调用预算包含聊天与 Embedding 请求，不是费用预算。Token 统计仅累加提供方返回的聊天 usage，缺失时为 0，不可把 0 当成免费。
+调用预算包含聊天、查询改写、证据判断、Embedding 和专用 rerank，不是金额预算。Token 统计只累加聊天 usage。专用重排可成组设置 DOCRESEARCH_RERANK_URL、DOCRESEARCH_RERANK_API_KEY、DOCRESEARCH_RERANK_MODEL，协议为 DashScope；不设则由 LLM 显式排序/评估，设了但失败不会静默跳过。
 
 ## 项目范围
 
 - CLI，本地资料目录与独立报告目录。
 - ES 执行 BM25 与 IK 分词，Milvus 持久化向量并使用 HNSW/COSINE，按统一 Source ID 做 RRF。
 - 版本化入库、幂等复用、双写完成后发布 ready manifest；读取核对来源，不使用半成品索引。
-- Tool Calling 主循环，子代理只读，主代理统一写报告。
+- 自适应主代理：简单任务直接做，复杂任务 plan/task；显式依赖、失败传播、限长子结果，不自动回灌原文。
+- 主子都有受控文件工具，各自目录、hash 版本检查、单文件原子替换；源资料只读，最终报告统一发布。
+- 改写、多查询检索、融合、重排、证据判断和一次补检索；判断结果不代表事实证明。
 - 总调用次数、子代理步数、并发数、单次调用及任务超时。
 - 离线演示与自动化测试。离线模式是确定性脚本，不代表真实模型效果。
 

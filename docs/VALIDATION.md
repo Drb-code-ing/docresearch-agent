@@ -3,14 +3,47 @@
 ## 自动化验证
 
 - 日期：2026-09-28，Asia/Shanghai。
-- 本地：Windows，uv 管理的 CPython 3.12.13，73 passed，真实服务集成测试默认 skip；显式开启后另行 1 passed。
+- 本地：Windows，uv 管理的 CPython 3.12.13，99 passed、1 skipped；真实服务集成测试默认 skip，显式开启后另行 1 passed。
 - Ruff 检查与格式化检查通过。
+- 本轮数据库复测首次失败于 gRPC 使用不可达的本地代理 127.0.0.1:7897；仅在测试进程配置 localhost/127.0.0.1 的 NO_PROXY、no_proxy、no_grpc_proxy 后，原 Docker 服务上的同一测试通过。没有修改全局代理或重建数据库。
 - GitHub Actions 配置：Windows/Linux × Python 3.11/3.12 四个组合；真实数据库集成测试在本地显式开启，不依赖 CI 启动数据库。
 - [ES/Milvus 代码提交 13fb332 的 CI 记录](https://github.com/Drb-code-ing/docresearch-agent/actions/runs/36372634202) 四个组合均通过；最新提交结果以 [Actions](https://github.com/Drb-code-ing/docresearch-agent/actions) 对应 SHA 的运行记录为准。
 
 测试证明结构、检索计算、权限和运行机制符合用例，不是模型准确率评测。符号链接测试在不支持创建链接的环境会明确 skip，应以实际任务日志为准。
 
-## 正式 ES/Milvus 后端验收
+## 按需委派与 Agentic RAG 验收
+
+这里对应主保留基础工具、子独立上下文和工作区的新架构。下方旧版记录不能替代本节验收。
+
+### 已完成的确定性验证
+
+- 简单任务由主完成 search、write_file、read_file、edit_file、save_report，`tasks=0`。
+- 两个研究子任务完成后，核验任务才能接收精简依赖结果；未知依赖、环、重复 ID、未完成依赖会被拒绝。
+- 子结果不带 Source.text、文件正文和工具历史，也不更新主的 seen。主不能用没亲自读取的来源改写子结论；选用已登记 finding_id 时保留原句与引用。
+- 主子都可写私有工作区；跨目录、陈旧版本覆盖、非唯一匹配编辑与超限文件被拒绝。
+- 检索测试覆盖查询改写、候选融合、专用 reranker 协议、证据评估和最多一次补检索；排队取消及失败依赖也有用例。
+- 离线 CLI demo：17 次模拟请求、14 次工具调用、2 个子任务。模拟轨迹只证明流程，不证明模型自主决策质量。
+
+### 真实简单任务：完成研究，保留资料缺口
+
+- 仅发送 `examples/corpus` 三份自编资料；请求模型标识为 deepseek-v4-flash，使用已有 Embedding 与 qwen3-rerank 配置，不公开凭据。
+- `partial`、`error=null`、`es-milvus-rrf`；14 次计费相关请求计数（含聊天、向量、专用重排），10 次工具调用，0 个子任务。
+- trace 可复算 10 组 tool_start/tool_end，包括检索、两次 read_source、两次写文件、两次读文件、一次编辑及 save_report。检索经过 rewrite、rerank、grade；本次 sufficient=true，没有触发补检索。
+- 5 条发现、3 个缺口、2 份被引用来源。16109 ms；提供方 chat usage 为 34615 prompt / 2731 completion tokens，只是单次记录，不代表均值或完整费用对账。
+- [报告](evidence/adaptive-simple/report.md)、[统计](evidence/adaptive-simple/run.json)、[轨迹](evidence/adaptive-simple/trace.json)、[任务表](evidence/adaptive-simple/tasks.json)、[来源](evidence/adaptive-simple/sources.json)。工具轨迹记录文件操作成功，工作区正文没有额外发布。
+- 人工抽查：部署和维护结论能对应样例；第一条将“业务字段过滤与 SQL 查询组合”进一步解释为“同一条关系查询中”，比原文略具体。保留原始报告，不把引用 ID 有效当成每句话已被严格证明。
+
+### 真实复杂任务：未通过端到端验收
+
+- 首次尝试记录 80 次请求、51 次工具调用、4 个任务、并发峰值 2；其中 2 个任务完成、2 个任务 StepLimit，总体 `budget_exhausted`，没有 report.md。
+- [运行统计](evidence/adaptive-complex-failed/run.json)、[轨迹](evidence/adaptive-complex-failed/trace.json)、[任务状态](evidence/adaptive-complex-failed/tasks.json)。错误包括路径使用与末轮结果校验失败，引发反复尝试和预算消耗。
+- 随后补充路径指引、参数字段反馈、末两轮收束提醒，并把子轮数默认值改为 10；这些修复通过离线回归。默认总请求预算仍是 48，失败试验中的 80 是显式覆盖，不能靠提高上限宣称解决问题。
+- 修复后复测首请求返回 HTTP 402，0 工具、0 子任务，已停止继续调用。[统计](evidence/adaptive-retest-402/run.json)、[含 HTTP 状态的轨迹](evidence/adaptive-retest-402/trace.json)。这表明提供方拒绝请求；没有足够信息判定具体余额或账户原因。
+- 因此：新架构已实现并经确定性测试验证，真实简单任务通过；复杂真实模型研究仍需提供方恢复后复测，不能宣称稳定完成。用更多、更长的独立资料评估质量也尚未完成。
+
+上述文件是本机运行产物，不是提供方签名证明。它们记录请求模式和程序事件，不额外证明服务端实际模型身份。
+
+## 历史：基础 ES/Milvus 后端验收
 
 - 复用现有 Docker：ES 8.17.0 + analysis-ik；Milvus standalone v3.0.0，etcd/MinIO 为已有依赖。未重建服务、未删除原有学习数据。
 - 官方客户端：elasticsearch 8.19.3、pymilvus 2.6.17。BM25 在 ES/Lucene 执行；Milvus 使用 HNSW/COSINE，M=16、efConstruction=128、查询 ef=64。
@@ -21,7 +54,9 @@
 - 人工抽查：部署与维护结论可对应原文，没有性能/费用数值；第 6 条把两方都概括为“提及向量索引”比 pgvector 原文更具体，保留原始输出作为来源校验不等于语义支持的实际例子，不把该报告视为完全正确。
 - 离线测试 73 项通过；真实 ES/Milvus 集成测试使用独立随机空间与合成二维向量，1 项通过，覆盖关闭客户端后的复用、资料删除后换快照、存储内容损坏时拒绝读取。只清理测试自己创建且核验归属的空间。
 
-同一 20 题集在正式后端上的结果：16 个有答案题 document recall@2=0.96875、top-1=0.9375；4 个无答案题空结果率=0。查询 Embedding 20 次、测量区间 2688 ms，复用已有文档向量。逐题结果见 [ES/Milvus](evidence/retrieval-es-milvus.json)。旧内存混合的 recall@2=1.000、top-1=0.875，因此不能宣称换数据库就全面提高检索质量。
+同一 20 题集在基础 ES/Milvus+RRF 后端上的结果：16 个有答案题 document recall@2=0.96875、top-1=0.9375；4 个无答案题空结果率=0。查询 Embedding 20 次、测量区间 2688 ms，复用已有文档向量。逐题结果见 [ES/Milvus](evidence/retrieval-es-milvus.json)。旧内存混合的 recall@2=1.000、top-1=0.875，因此不能宣称换数据库就全面提高检索质量。这组评测没有经过新 AgenticSearch 的改写、重排、评估与补检索，不是完整 Agentic RAG 质量评测。
+
+旧 trace 未覆盖终止工具及部分被拒绝动作，旧版 23 次工具计数不能仅由它复算。新版已补齐 tool_start/tool_end，保留旧证据原样以免混淆版本。
 
 以下保留迁移前内存后端的真实证据，供历史与对照，不代表正式默认存储结构。
 

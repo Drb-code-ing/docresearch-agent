@@ -6,7 +6,7 @@
 
 读完以后，你应该能自己画出“文件怎么变成模型看到的证据、模型怎么请求操作、子代理怎么返回、报告怎么写入”的过程。面试表述放在另一篇 [面试文档](INTERVIEW_GUIDE.md)，这里先把事情学明白。
 
-**阅读顺序：** 第一次读第 1 至 8 节，跟着离线学习脚本看数据怎么变化；第二次读第 9 至 13 节，理解引用、失败与验证；最后做第 14 节的五个练习。暂时看不懂的源码细节不必硬背，先把输入到输出的路线走通。
+**先读一遍运行故事，再看实现。** 第 1 节先回答“这个程序在忙什么”；第 3、5、6、7、9、11 节分别解释资料、工具、循环、分工、引用和文件。第 4 节的数据库参数可以第二遍再读，不需要先记住 HNSW 的参数才能理解整个项目。每读完一节，先用自己的话复述例子，再打开对应源码。
 
 ## 1. 先看它替你做了什么
 
@@ -23,6 +23,43 @@ DocResearch 做的就是这件事。区别是：**模型负责提出下一步动
 它的输入是“问题 + 本地资料目录”，输出是“报告 + 引用原文 + 运行记录”。不是通用编程助手，不会替你运行 Shell 或随意修改电脑文件。
 
 正式检索由两个持久化服务完成：Elasticsearch 负责关键词，Milvus 负责向量。样例资料也恰好讨论 Milvus，但“资料研究对象”和“程序实际使用的检索服务”是两个角色；本项目没有使用 pgvector。离线 demo 另有内存教学后端，方便先看懂流程。
+
+### 先认识三个词，不要急着背框架
+
+- **检索**：从文件里挑出可能回答问题的几段话，不是直接得到答案。例如“部署维护”能找到“监控、备份”相关段落，但不一定能找到费用数字。
+- **工具**：Python 允许模型申请的一种操作。例如 search 查资料，write_file 写笔记。模型只提出申请，程序才真正执行。
+- **上下文**：这一轮发给模型的内容，包括问题、之前的回复和工具结果。子 Agent 的上下文独立，意思是它不会自动收到主 Agent 之前读过的全部内容。
+
+### 用一件小事看完整运行
+
+先问一个小问题：“根据资料，已有 PostgreSQL 的应用如何使用 pgvector？”一条可能的执行路径是：
+
+| 步骤 | 谁在做 | 具体发生什么 |
+| --- | --- | --- |
+| 1 | 用户 | 提供问题和 examples/corpus 资料目录 |
+| 2 | Python | 读取允许的文件，记住正文、文件名、行号与版本 |
+| 3 | 主 Agent | 请求 search，查 pgvector 与 PostgreSQL 的关系 |
+| 4 | 检索代码 | 找到相关段落，把正文与出处交回主 Agent |
+| 5 | 主 Agent | 阅读段落；需要整理时，在自己的 notes.md 中写下研究笔记 |
+| 6 | 主 Agent | 提交结论、出处和资料没有回答的问题 |
+| 7 | Python | 检查引用并生成 report.md，同时保存来源与执行记录 |
+
+**这条路径没有子 Agent。** 写笔记也是工具能力，不是所有任务必须经过的固定步骤。真实运行的具体先后由模型选择，程序负责限制哪些动作可以执行。
+
+把问题换成“分别整理 pgvector、Milvus 的部署维护，再比较差异”，主可以选择另一条路径：
+
+```text
+主 Agent：决定分工
+  -> 子 A：读 pgvector 资料，返回结论和出处
+  -> 子 B：读 Milvus 资料，返回结论和出处
+主 Agent：看两份结果，决定直接汇总还是继续核对
+  -> 如需核验：等 A、B 完成，再派一个核验任务或自己读原文
+主 Agent：提交报告 -> Python 检查后保存
+```
+
+A 与 B 可以同时工作，核验“它们的结论”却必须等它们先交结果。这就是后文“任务依赖”的意思。这里只演示代码允许的路径，不宣称每个真实模型都会做出最优拆分。
+
+现在可以把项目拆成两半：**Agent Loop 决定下一步做什么；Agentic RAG 决定一次 search 怎样更好地找证据。** 文件工具把读到的内容、研究笔记和最终报告连接起来。不是为了叫“多 Agent”而强制把小问题拆开。
 
 ### 先运行，再读解释
 
@@ -60,7 +97,7 @@ uv run docresearch demo
 
 `pyproject.toml` 把 docresearch 这个命令指向 `docresearch.cli:main`。因此运行命令之后，真正进入的是 [cli.py](../src/docresearch/cli.py) 的 `main()`。
 
-它先用 argparse 把命令行文字解析成对象。例如 `--max-calls 24` 会变成 `args.max_calls == 24`。然后通过 `asyncio.run(execute(args))` 启动一次异步任务。
+它先用 argparse 把命令行文字解析成对象。例如 `--max-calls 24` 会把默认的 48 覆盖为 `args.max_calls == 24`。然后通过 `asyncio.run(execute(args))` 启动一次异步任务。
 
 先忽略错误分支，把 `execute` 看成下面的顺序。**这是帮助理解的简化代码，不是另一个需要运行的实现。**
 
@@ -301,7 +338,9 @@ demo 和 walkthrough 为了零依赖教学，保留旧的内存检索器。它�
 
 ## 5. 第三件事：模型怎么“使用工具”
 
-先不要想 Agent。普通 Python 代码可以这样查询：
+### 从一次普通函数调用理解 Tool Calling
+
+先看模型如何申请一次 search，再看这个工具内部怎样检索。普通 Python 代码可以这样查询：
 
 ```python
 sources = await retriever.search("Milvus", limit=2)
@@ -365,6 +404,37 @@ Contract 启用严格类型并禁止额外字段。于是：
 
 `list_documents` 则只返回文件路径、版本、大小，不返回每份资料全文。它也不会让全部片段自动进入 `seen`。
 
+### search 内部的 Agentic RAG 流程
+
+底层 Retriever 只查候选；[agentic.py](../src/docresearch/agentic.py) 的 `AgenticSearch` 负责怎样组织查询、筛选证据和有限重试：
+
+```text
+原问题 -> 生成 1-2 条查询改写，同时保留原问题
+       -> 最多 3 个查询并发执行 ES/Milvus 双路检索
+       -> 每查询最多 8 个候选，跨查询按 ID 做 RRF，保留 8 个
+       -> 可选 DashScope 专用 reranker
+       -> LLM 对有用 ID 排序，并判断证据是否回答所问事实
+       -> 证据不足且有新查询时，只补检索 1 轮
+       -> 返回正文、sufficient、missing、attempts
+```
+
+先把这串术语翻译成一次查资料的过程。下面是帮助理解的例子，不是实际模型输出的逐字转录：
+
+| 处理步骤 | 输入是什么 | 做什么、交出什么 |
+| --- | --- | --- |
+| 查询改写 | “哪个维护成本更低？” | 生成“部署维护要求”“监控备份”等其他问法，原问题也保留，避免只换个词就丢掉原意 |
+| 两路召回 | 每一种问法 | ES 查关键词，Milvus 查意思接近的文本，各交出一个候选片段列表。“召回”就是先把可能有用的片段找回来 |
+| RRF 合并 | 多个候选列表 | 用同一片段 ID 去重，综合它在各列表中的名次；这一步没有理解原文的含义 |
+| Rerank 重排 | 问题 + 少量候选正文 | 更仔细地比较哪段与问题相关，把值得先读的段落排前面 |
+| 证据评估 | 问题 + 排序后的正文 | 不只问“相关吗”，而是问“这些话是否真的足够回答问题？”例如只有维护事项，没有费用，就仍然不足 |
+| 补查或返回 | 不足原因、可选新查询 | 最多补查一次。仍缺费用数字，就把缺口交回 Agent，而不是编价格 |
+
+这里最重要的区别是：**“监控和备份”与费用问题相关，但相关不等于已经证明哪种方案更便宜。** 重排不能代替证据判断，补查也不能保证资料中本来没有的事实会出现。
+
+改写使用 `QueryRewrite` 契约；评估使用 `EvidenceGrade`，包含 ordered_ids/sufficient/missing/retry_query。程序拒绝未知 ID、重复 ID、超量候选，以及“零片段却声称充分”。模型仍可能误判证据，结构校验不是事实证明。
+
+不配置专用接口时，LLM 明确执行排序与证据判断。配置 `DOCRESEARCH_RERANK_URL/API_KEY/MODEL` 三项后，先经 [rerank.py](../src/docresearch/rerank.py) 的 DashScope 适配器，再由 LLM 判断。专用接口失败不会暗中当作成功。两层 RRF 分别融合两个库与多个查询，不是答案置信度。
+
 ## 6. 第四件事：把一次工具调用接成循环
 
 [runtime.py](../src/docresearch/runtime.py) 的 `ResearchRun.loop()` 反复做下面的事情：
@@ -388,11 +458,11 @@ Contract 启用严格类型并禁止额外字段。于是：
 5. 工具结果按调用 ID 回填，进入下一轮。
 6. 终止工具必须单独调用，结构和引用检查都通过才结束。
 
-主代理的终止工具是 `save_report`，子代理的是 `finish_research`。它们需要的字段是固定的：发现、引用、缺口，主报告再多一个标题。
+主通过 save_report 表示“可以生成报告了”；子通过 finish_research 表示“我的研究做完了”。findings 是研究结论，gaps 是资料没回答的问题。主既能提交自己查证的结论，也能选用子已交付的结论；后者的编号叫 finding_id，第 9 节用具体例子解释，不必现在背字段。
 
-这里 `save_report` **不会立刻写磁盘**。它提交 `Report` 对象；最外层的 `run()` 统一决定状态、收集来源、生成文件。
+save_report **不会立刻写磁盘**。模型先交“报告申请单”（代码里的 SaveReport），程序检查内容，把选中的子结论取出来，整理成完整 Report，最后由 run 统一保存。这样模型不能自己指定任意路径，子任务也不能抢先覆盖最终报告。
 
-普通工具参数错了，会收到受控错误，例如 invalid_arguments_or_source。模型可以在剩余步数中修正。没有无限重试：主代理最多 8 轮，子代理最多 5 轮，每个代理最多 `search` 3 次。
+普通工具参数错了，会收到受控错误；Pydantic 反馈包含字段名和错误类型，不回显完整输入。模型可在剩余步数内修正。主子默认各最多 10 轮，每代理最多 search 3 次；最后两轮提示收尾，硬上限仍由程序执行。
 
 ### 三种“状态”别混在一起
 
@@ -402,7 +472,7 @@ Contract 启用严格类型并禁止额外字段。于是：
 | `AgentState` | Python 运行时 | 是否主代理、`seen`、`search` 次数 |
 | `Budget` | 全部代理共享 | 全局调用数、工具数、`chat` `usage` |
 
-模型在文字里说“我读过 `pgvector.md`”，并不能修改 `seen`。只有实际成功执行 `search`/read，或者父代理获得成功子任务的证据，代码才登记来源。
+模型说“我读过 pgvector.md”不能修改 seen。只有这个代理自己 search/read 得到正文才登记来源。子结果不修改主 seen，其结论走独立登记表。
 
 ## 7. 第五件事：为什么还需要子代理
 
@@ -410,25 +480,47 @@ Contract 启用严格类型并禁止额外字段。于是：
 
 我们的比较任务可以拆成两个独立问题：“部署维护有什么差别”和“检索能力有什么差别”。它们都能直接读同一份资料，不必等待对方结论，适合并发研究。
 
-相反，“先找出方案，再根据选中的方案写迁移步骤”存在依赖，不应盲目同时执行。本项目通过系统规则提醒模型选择独立任务，没有实现一个能自动证明语义依赖关系的调度器。
+“先比较方案，再核对比较结论”有依赖，不能盲目同时执行。主用 plan 显式声明 depends_on，程序检查重复 ID、未知依赖和环，并硬性等待依赖完成；它不自动证明语义依赖是否合理。
 
 ### task 实际执行了什么
 
-父模型请求 `task({question: ...})`，`dispatch` 调用 `child()`。后者创建新的 `AgentState`，然后调用同一个 `loop()`。
+用前面的比较问题，先按人能理解的顺序过一遍：
 
-**不是复制一份 Agent 代码，也不是另起一个 Python 进程。** `parent=False` 改变工具集合和步数限制，`loop()` 自己创建新的 `system`/`user` 消息。
+1. 主把三项工作记入计划：A 研究 pgvector，B 研究 Milvus，C 核对 A、B 的结论。
+2. plan 只是登记计划，**不会自动启动 A 或 B**。主接下来还要调用 task 请求执行。
+3. A、B 没有前置任务，可以一起申请。Python 为每个子创建新的对话列表与自己的笔记目录。
+4. 子各自查资料并交出简短结果。程序记录谁完成、谁失败，主收到结果后才继续决定下一步。
+5. 主再请求执行 C。C 只有在 A、B 都成功后才能开始；提前请求会被拒绝，不会让它凭空核验尚不存在的结果。
+6. 若 A 失败，依赖 A 的 C 也会被标记为不能继续。主仍可基于其他有效结果提交带缺口的报告。
+
+“依赖图”只是把上面的先后关系写下来，图没有神奇的自动规划能力。**模型提出分工，Coordinator 这个 Python 类检查分工是否合法并记住进度。**
+
+先 plan，再 task。例如：
+
+```json
+{"tasks":[
+  {"task_id":"pg","question":"研究 pgvector 部署约束","depends_on":[]},
+  {"task_id":"mv","question":"研究 Milvus 部署约束","depends_on":[]},
+  {"task_id":"check","question":"对照原文核对比较结论","depends_on":["pg","mv"]}
+]}
+```
+
+主可同轮派发 task({task_id:"pg"}) 和 task({task_id:"mv"})；check 必须等待前两项成功。child 创建新 AgentState，调用同一个 loop，只接收问题与精简依赖结果。前置失败会让后继标记 dependency_failed，不永远卡在 pending。计划只能追加新 ID，不改写已完成问题。
+
+**不是复制一份 Agent 代码，也不是另起一个 Python 进程。** `parent=False` 选择子角色的工具集合与轮数配置，`loop()` 自己创建新的 `system`/`user` 消息。主、子轮数可分别配置，但默认都为 10 轮。
 
 | 内容 | 父子之间是否共享 |
 | --- | --- |
 | 资料快照 `Corpus`、检索索引 | 共享，避免重复读取和建索引 |
 | 模型连接、全局 `Budget` | 共享，费用相关调用统一计数 |
-| `messages` | 不共享完整历史，只交一个自包含子问题 |
+| `messages` | 不共享历史，只交子问题和完成依赖的精简结果 |
 | `AgentState.seen` / `searches` | 各自独立 |
-| 写报告、再派发工具 | 子代理没有 |
+| 文件工作区 | 每代理独立，同名 notes.md 不冲突 |
+| 最终报告、再派发工具 | 子代理没有 |
 
-子代理只能列目录、检索、按 ID 读片段、提交研究结果。它不能递归派发，也不能保存最终报告。
+主子都有 list_documents/search/read_source/read_file/write_file/edit_file。子还可 finish_research；主额外有 plan/task/save_report。**简单任务由主直接做，不强制创建子代理。** 子不能递归派发或保存最终报告，但能在自己工作区读写编辑笔记。
 
-仅仅“不把写工具展示给它”还不够。`dispatch()` 也按角色检查允许的工具名，即使模型凭空返回 write_file 或 `task`，代码也会拒绝。
+Schema 和 dispatch 是两层权限检查。子即使凭空构造 task/save_report 也会被拒绝；写权限不是全部取消，而是将路径绑定到本代理工作目录。
 
 ### 子代理把什么交回来
 
@@ -446,7 +538,11 @@ Contract 启用严格类型并禁止额外字段。于是：
 }
 ```
 
-真实 `task` 返回值还会在 `result` 之外附上 `status` 和 `sources`。`sources` 包含上述引用对应的完整 `Source` 对象。因此父代理收到结论时也收到原文，可以进行综合判断，而不是只相信子代理转述。
+运行时校验后为每条发现分配 pg:f1 一类 finding_id。task 回传 task_id/status/findings/gaps/files；files 只有路径、hash、字节数。发现最多 6 条、缺口最多 4 条，单条文字最多 500 字符。子工具历史和 Source.text 不回传。
+
+这意味着主收到的是：“A 的工作完成了；结论是这句话，来自这段资料；还有这个问题没查到；A 写过这些文件。”主**不会因为收到文件名，就自动读到文件正文**；当前 read_file 只能读取输入资料或自己的工作目录，不能读取子私有笔记。主核验结论时，应按 source_id 读取共享的原文，或明确派发新的核验任务。
+
+减少原文累积不等于彻底消除污染：摘要也可能误导或遗漏条件。主需要核对时，可以主动 read_source 或派验证任务；不是为了省 token 就禁止核验。
 
 ### 并发 2 和最多 4 个任务不是一回事
 
@@ -467,33 +563,44 @@ flowchart TD
     C --> D[主代理 loop]
     D --> E[直接 search / read_source]
     D --> F[task: 新上下文子代理]
-    F --> G[检索并提交 findings / gaps / 原文]
+    F --> G[检索与私有文件操作，提交限长结论和引用 ID]
     E --> D
     G --> D
     D --> H[save_report: 结构与引用检查]
-    H --> I[run: 判定状态并统一发布四个产物]
+    H --> I[run: 判定状态并统一发布五个产物]
 ```
 
 全离线 `demo` 的固定顺序是：
 
 ```text
-主代理第 1 轮：申请两个 task
-  子代理 1 第 1 轮：search
-  子代理 2 第 1 轮：search
-  子代理 1 第 2 轮：finish_research
-  子代理 2 第 2 轮：finish_research
-主代理第 2 轮：save_report
+主代理：plan -> 两个 task -> save_report
+每个子代理：search -> write_file -> read_file -> edit_file -> finish_research
+每次 search 内部：改写 -> 检索 -> 排序与证据判断
 ```
 
-这解释了为什么 `demo` 有 6 次模拟模型调用、7 次计数工具调用。两个 `task`、两个 `search`、两个 finish、一个 save，一共 7 个工具。它不是“真实 Agent 平均只需要 6 次请求”。
+CLI demo 为 17 次模拟请求和 14 次工具调用。请求包括改写与评估，工具包括计划、派发、文件操作和终止工具。模拟器固定这些决定，只用于观察程序流程，不代表真实效果。
 
-真实模型可以做不同选择：先列举资料、多次回读，或不派子代理。实际 ES/Milvus 样例是 13 次聊天 + 5 次查询 Embedding、2 个 `child`、23 次工具调用。文档向量在之前的 ingest 中生成，run 没有重新向量化全部文档。
+真实简单任务已在 0 个子任务的情况下完成检索、写笔记、读回、编辑与报告。复杂流程的真实成功/失败边界见 [VALIDATION](VALIDATION.md)，不要把旧架构成功记录当作全部新路径都通过。文档向量在之前的 ingest 中生成。
 
 两种模式都由 `Corpus` 提供原文快照，由 `ResearchRun` 执行工具循环，最后交给 `ArtifactWriter` 发布文件。不同的是两个可替换组件：demo 使用 `DemoModel` 和内存 `Retriever`，正式模式使用 `CompatibleModel` 和 `PersistentRetriever`。运行时通过统一的 `chat`、`prepare`、`search` 接口调用它们。这叫依赖注入：把“由谁回复、到哪里检索”与“怎么执行循环”分开，测试就不需要外部模型和数据库每次作出相同响应。
 
 ## 9. 报告的引用为什么可以核对，但不能保证正确
 
-每个代理有一个 `seen` 集合，记录它实际收到过正文的片段 ID。子代理提交发现前，每个 `source_id` 都必须属于自己的 `seen`。父代理收到经过检查的子结果和引用原文后，把这些 ID 纳入自己的可用证据。
+先区分两种编号。它们不是两个数据库，也不要求模型理解哈希算法：
+
+| 名称 | 指向什么 | 为什么需要它 |
+| --- | --- | --- |
+| source_id | 一段原始资料 | 让代码知道引用到底是哪份文件的哪些行 |
+| finding_id | 子 Agent 已提交的一条结论，以及它的引用 | 让主直接选用这条完整结论，不必把子读过的全部原文再塞进主上下文 |
+
+例如，子 A 读到 pgvector.md，提交：“已有 PostgreSQL 的小型应用可以复用它保存向量。”程序先检查 A 是否收到过引用的原文，再把这句话和出处保存起来，编号为 pg:f1。这份保存在程序中的列表，就是“结论登记表”。
+
+主此时有两种不同操作：
+
+1. **选用原结论：** 提交 finding_ids=["pg:f1"]。代码取出已经登记的原句和出处，不让主偷偷替换句子。
+2. **提出新判断：** 先 read_source 阅读相关原文，再提交自己的 findings。例如要补充部署约束，不能仅凭子给出的引用编号，就假装自己已经看过资料。
+
+seen 可以理解成“程序给这个 Agent 记的一张已读片段清单”。主、子各有一张；收到子结论不会自动把子的清单抄给主。对应实现是：子 findings 的 source_ids 必须属于子 seen，主自己写的 findings 必须属于主 seen。
 
 `validate_evidence()` 的关键逻辑很短：
 
@@ -521,9 +628,9 @@ ID 检查可能通过，结论仍然错误。因为“出处存在”与“原�
 
 | 限制 | 默认值 | 防什么问题 |
 | --- | --- | --- |
-| 聊天 + Embedding 请求数 | 24 | 反复调用外部模型 |
-| 计数工具调用 | 48 | 单次响应带出很多工具请求 |
-| 主 / 子代理循环轮数 | 8 / 5 | 只说话不结束，或不断返回错误参数 |
+| 聊天 + Embedding + 专用 rerank 请求数 | 48 | 包括改写与证据评估 |
+| 计数工具调用 | 64 | 单次响应带出很多工具请求 |
+| 主 / 子代理循环轮数 | 10 / 10 | 只说话不结束，或不断返回错误参数 |
 | 每代理 `search` 次数 | 3 | 无限改写检索 |
 | 子任务总数 / 并发数 | 4 / 2 | 无限制拆分 / 同时压满服务 |
 | 单请求 / 研究区间超时 | 30 / 180 秒 | 外部服务卡住、研究一直不完成 |
@@ -568,7 +675,7 @@ return await function()  # 原实现还包裹了单请求 timeout
 | `timeout` | 总超时或传播到主运行的请求超时 | 无 |
 | `failed` | 轮数耗尽、协议异常等其他失败 | 无 |
 
-后三种通常仍保存三个诊断 JSON。启动参数、空资料或磁盘写入失败可能发生在这个收尾范围之外，不保证有产物；Ctrl+C 也不保证写完。
+后三种通常仍保存四个诊断 JSON，包括任务状态 tasks.json。启动参数、空资料或磁盘写入失败可能发生在这个收尾范围之外，不保证有产物；Ctrl+C 也不保证写完。
 
 局部 `child` 超时可以被转为失败结果交回父代理，父代理仍可输出 `partial`。全局预算耗尽则继续向上传播，终止整次研究。
 
@@ -584,10 +691,35 @@ return await function()  # 原实现还包裹了单请求 timeout
 | `sources.json` | 报告引用的原文到底是什么版本？ |
 | `trace.json` | 哪个代理何时开始请求、执行哪个工具、在哪里结束？ |
 | `run.json` | 状态、调用数、工具数、并发峰值、耗时、限制是多少？ |
+| `tasks.json` | 计划中的依赖是什么？每项任务的状态和精简结果是什么？ |
 
-输出目录必须与资料目录互不包含，防止报告再次被当成输入，或者覆盖源文件。每次使用新 `run` ID，文件名只允许这四种。
+输出目录必须与资料目录互不包含。每次使用新 run ID，最终产物名只允许这五种；中间工作文件写到 reports/workspaces/<run_id>/<agent_id>/，与最终发布目录分开。
 
-单文件先写同目录临时文件，再 `os.replace` 到目标。读者不会看到这个文件写到一半的正文；但四个文件不是一个事务，磁盘出错仍可能留下部分运行目录。
+单文件先写同目录临时文件，再 os.replace 到目标；五个文件不是同一事务，磁盘出错可能留下部分发布目录。
+
+### 主子代理怎样读写编辑文件
+
+先看目录，不看实现。假设某次运行编号叫 run-123：
+
+```text
+examples/corpus/pgvector.md                  输入资料，谁都不能用工具改它
+reports/workspaces/run-123/coordinator/notes.md  主自己的笔记
+reports/workspaces/run-123/pg/notes.md           子 pg 自己的笔记
+reports/workspaces/run-123/mv/notes.md           子 mv 自己的笔记
+reports/run-123/report.md                       Python 统一生成的最终报告
+```
+
+run-123 是示意名，真实运行使用随机 ID。工具只需要传 notes.md，代码会把它放进当前 Agent 对应的目录。这里的“私有”表示**工具不允许代理互读互写这些目录**，不是文件被加密，也不是启动了多个容器。电脑上的用户仍能打开这些文件。
+
+因此，“主保留读写权限”具体指能读共享输入资料、创建和修改自己的工作文件、提交最终报告；不是获得任意路径或覆盖别人的笔记的权限。
+
+[workspace.py](../src/docresearch/workspace.py) 的 WorkFiles 只有 read/write/edit 三个主要操作，把路径、版本、限额和原子替换封装在一起。输入目录仍只读，工作文件允许 md/txt/json，单个最多 12000 字符且 48000 字节，每代理最多 8 个文件、96000 字节。
+
+例如第一次写 notes.md 的内容是“待确认维护要求”，代码根据这份内容算出版本标记 v1。读文件时会同时返回正文与这个标记。编辑请求要带上“我依据的版本是 v1”，以及要替换的旧句和新句；成功后内容改变，版本也变为 v2。再有一个请求还拿着 v1，代码就拒绝，避免它用旧笔记覆盖新笔记。v1/v2 是便于讲解的名字，真实标记是 SHA-256 哈希。旧句还必须恰好出现一次，防止一条编辑误改多处。
+
+路径拒绝绝对路径、盘符、父目录、隐藏路径和符号链接。两个子任务都有 notes.md，但物理目录不同，因此不争抢同一文件。版本检查是在单进程同步操作内完成，不是抵御外部恶意进程竞态的分布式锁。
+
+read_file 的 area=corpus 读取启动时文本快照，area=work 读取自己的工作文件。部分行只会获得完整覆盖片段的 source_ids；不能只读标题就自动获得整篇证据资格。想引用其余片段，应再用 read_source。
 
 运行轨迹没有完整模型对话，因此适合定位阶段，不足以精确重放一个真实模型任务。`sources.json` 则确实有资料正文，不能当作无敏感信息的普通日志上传。`reports/` 默认被 Git 忽略。
 
@@ -612,6 +744,8 @@ return await function()  # 原实现还包裹了单请求 timeout
 3. 聊天和向量可以使用不同服务。独立向量 URL/key 必须一起给，防止聊天密钥被发往另一个端点。
 4. `.env.example` 是说明文件，程序不会自动加载 `.env`。连接在 CLI 的 `finally` 中关闭。
 
+专用 rerank 有独立 URL/key/model，必须成组配置；不会自动把聊天 key 发给另一个端点。没配置时使用显式 LLM 排序与评估。所有改写、评估、向量和专用 rerank 请求都进入共享 Budget，但 usage 只累计聊天 token。
+
 这个项目遇到过一个实际排错点：Windows 上，即使没有 `HTTPS_PROXY`，HTTPX 仍可能通过系统配置使用代理。既有 Embedding 服务走代理连接超时，保持端点和输入不变、显式直连后返回成功。
 
 所以提供 `DOCRESEARCH_TRUST_ENV=false` 作为显式选择，不自动猜路由。它关闭环境/系统代理和环境证书配置，仍开启 TLS 证书验证。企业网络依赖代理或自定义 CA 时不能照搬这个选项。
@@ -630,13 +764,13 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-例如“子代理不许写文件”“预算不能超额”“文件修改后仍返回旧快照”，这些是代码规则，用固定输入就能验证，不需要大模型随机回答。
+例如“子代理不能写 corpus、其他代理工作区和最终报告，但可以读写自己的笔记”“预算不能超额”“文件修改后仍返回旧快照”，这些是代码规则，用固定输入就能验证，不需要大模型随机回答。
 
 测试中的假模型会故意返回错误引用、慢响应或重复调用 ID，检查运行时是否处理正确。HTTP MockTransport 则替代网络，检查 URL、认证与响应解析。它们不是模型准确率测试。
 
 ### 真实链路：提供方能不能完成这类任务
 
-已用自编资料跑通持久化 ES/Milvus 的真实入库、重复复用、双子代理与报告。报告在 [这里](evidence/controlled-live-es-milvus/report.md)，对应统计和轨迹同目录保存。真实服务集成测试还用合成向量验证关闭客户端后重连复用、资料删除后选择新快照、存储损坏时拒绝读取。
+持久化 ES/Milvus 的真实入库、重复复用与旧版双子代理报告已有[存档](evidence/controlled-live-es-milvus/report.md)。新的按需委派架构已跑通[主代理直接研究与读写](evidence/adaptive-simple/report.md)，0 个子任务，实际经过查询改写、专用重排和证据评估。新复杂流程首次真实运行耗尽预算；修复后的复测在首请求遇到 HTTP 402，因此复杂流程目前只有确定性测试通过，不能用旧报告替代新架构验收。真实服务集成测试另外用合成向量验证重连复用、资料删除后换快照和存储损坏拒绝读取。
 
 这证明选定接口、Tool Calling 和真实向量能协同工作。不代表所有兼容服务都正常，也不代表已有真实用户使用。
 
@@ -648,7 +782,7 @@ uv run python -X utf8 -m docresearch.evaluation
 uv run python -X utf8 -m docresearch.evaluation --backend es-milvus
 ```
 
-评测命令不调用聊天模型。它从 `examples/retrieval_cases.json` 读取 20 道预先标注的问题，逐题查询真实 `Retriever`；答案标签只用于评分，不会交给检索器。
+评测命令不调用聊天模型，也不调用 `AgenticSearch` 的改写、重排、评估和重试。它从 `examples/retrieval_cases.json` 读取 20 道预先标注的问题，逐题查询基础检索后端；答案标签只用于评分，不会交给检索器。因此以下数字只衡量基础召回，不能解释成完整 Agentic RAG 的质量。
 
 其中 16 题有答案，4 题没有。对有答案题，取前两个 chunk，看它们覆盖多少个预期文档。例如一道题需要 A、B 两篇，实际只找到 A，就得到 1/2 的 recall。最后取 16 题平均值。
 
@@ -689,7 +823,8 @@ uv run docresearch demo --max-calls 1
 ### 练习四：看程序怎样拒绝非法引用与写入
 
 ```powershell
-uv run pytest tests/test_runtime.py -q -k "citation_must_be_seen or child_cannot_delegate_or_write"
+uv run pytest tests/test_runtime.py -q -k "citation_must_be_seen or child_cannot_delegate_or_publish"
+uv run pytest tests/test_coordination.py tests/test_workfiles.py -q
 ```
 
 打开同名测试：它故意注入坏动作，断言代码拒绝。测试通过意味着“拒绝行为符合预期”，不是坏动作执行成功。
@@ -712,13 +847,16 @@ uv run pytest tests/test_runtime.py -q -k "shared_budget or timeout_cancels_chil
 | 2 | [workspace.py](../src/docresearch/workspace.py) `Corpus` / `Source` | 原文、行号和版本如何保存？ |
 | 3 | [stores.py](../src/docresearch/stores.py) `ingest` / `prepare` / `search` | ES/Milvus 如何持久化、核验和检索？ |
 | 3a | [retrieval.py](../src/docresearch/retrieval.py) | 离线对照和 RRF 小函数如何工作？ |
+| 3b | [agentic.py](../src/docresearch/agentic.py) `AgenticSearch` | 一次 search 为什么还要换问法、重排、判断缺口？ |
+| 3c | [rerank.py](../src/docresearch/rerank.py) `DashScopeReranker` | 怎样把问题和候选正文交给专用重排服务？ |
 | 4 | [models.py](../src/docresearch/models.py) `Search` / `Finding` / `Report` | 哪些输入会被拒绝？ |
 | 5 | [provider.py](../src/docresearch/provider.py) `chat` / `embed` | HTTP 如何变成统一回复？ |
 | 6 | [runtime.py](../src/docresearch/runtime.py) `loop` / `dispatch` / `child` | 动作如何执行、结果如何返回？ |
+| 6a | [coordination.py](../src/docresearch/coordination.py) `Coordinator` | 哪项任务能开始？子结论如何登记并选入报告？ |
 | 7 | 同文件 `Budget` / `run` / `render` | 何时停、如何定状态和生成报告？ |
-| 8 | [workspace.py](../src/docresearch/workspace.py) `ArtifactWriter` | 副作用为何集中在最后？ |
+| 8 | [workspace.py](../src/docresearch/workspace.py) `WorkFiles` / `ArtifactWriter` | 中途笔记和最终报告分别由谁写、写到哪里？ |
 | 9 | [evaluation.py](../src/docresearch/evaluation.py) | 检索表现怎样被量化，而不冒充答案准确率？ |
 
 源码不需要一次背完。先能用自己的话说清这段话，再去准备面试：
 
-> 文件先变成带出处的快照。检索器从快照中找候选原文。模型通过结构化请求提出动作，代码检查后执行，再把结果交回。复杂问题可以派给新上下文的只读子代理，所有代理共享限制。最后模型提交结论和引用，程序核验来源、保留缺口，并统一生成报告。
+> 文件先变成带出处的快照。检索流程改写查询、融合召回、重排并判断证据，必要时补一次检索。主可直接读写工作文件，也可把复杂问题交给独立上下文与私有目录的子代理。子只回传限长结论，主需要时再核对原文；最后程序校验来源与结论登记表，保留缺口并统一生成报告。

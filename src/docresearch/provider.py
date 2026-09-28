@@ -141,11 +141,51 @@ class DemoModel:
                 arguments=json.dumps(payload, ensure_ascii=False),
             )
 
+        name = tools[0]["function"]["name"]
+        if name == "rewrite_queries":
+            data = json.loads(messages[-1]["content"])
+            return Reply(calls=[call(name, {"queries": [data["query"][:500]]})])
+        if name == "grade_evidence":
+            data = json.loads(messages[-1]["content"])
+            sources = data["sources"][: data["limit"]]
+            return Reply(
+                calls=[
+                    call(
+                        name,
+                        {
+                            "ordered_ids": [s["id"] for s in sources],
+                            "sufficient": bool(sources),
+                            "missing": "",
+                            "retry_query": "",
+                        },
+                    )
+                ]
+            )
         if parent and not results:
             return Reply(
                 calls=[
-                    call("task", {"question": "pgvector PostgreSQL 小型知识库部署与关系查询"}),
-                    call("task", {"question": "Milvus 向量数据库部署与维护成本"}, "2"),
+                    call(
+                        "plan",
+                        {
+                            "tasks": [
+                                {
+                                    "task_id": "pgvector",
+                                    "question": "pgvector PostgreSQL 小型知识库部署与关系查询",
+                                },
+                                {
+                                    "task_id": "milvus",
+                                    "question": "Milvus 向量数据库部署与维护成本",
+                                },
+                            ]
+                        },
+                    )
+                ]
+            )
+        if parent and len(results) == 1 and "tasks" in results[0]:
+            return Reply(
+                calls=[
+                    call("task", {"task_id": "pgvector"}),
+                    call("task", {"task_id": "milvus"}, "2"),
                 ]
             )
         if not parent and not results:
@@ -153,14 +193,14 @@ class DemoModel:
         findings: list[dict] = []
         if parent:
             for result in results:
-                findings.extend(result.get("result", {}).get("findings", []))
+                findings.extend(result.get("findings", []))
             return Reply(
                 calls=[
                     call(
                         "save_report",
                         {
                             "title": "小型知识库选型资料摘录（离线演示）",
-                            "findings": findings[:8],
+                            "finding_ids": [finding["finding_id"] for finding in findings[:8]],
                             "gaps": [
                                 "离线模式只演示派发、检索与落盘；未执行真实模型推理或性能对比。"
                             ],
@@ -176,6 +216,37 @@ class DemoModel:
                     paragraphs[-1],
                 )
                 findings.append({"statement": excerpt, "source_ids": [source["id"]]})
+        names = [m["tool_calls"][0]["function"]["name"] for m in messages if m.get("tool_calls")]
+        if "write_file" not in names:
+            return Reply(
+                calls=[
+                    call(
+                        "write_file",
+                        {
+                            "path": "notes.md",
+                            "content": "# Draft\n"
+                            + "\n".join(f["statement"] for f in findings[:4]),
+                        },
+                    )
+                ]
+            )
+        if "read_file" not in names:
+            return Reply(calls=[call("read_file", {"area": "work", "path": "notes.md"})])
+        if "edit_file" not in names:
+            version = next(r["version"] for r in reversed(results) if "version" in r)
+            return Reply(
+                calls=[
+                    call(
+                        "edit_file",
+                        {
+                            "path": "notes.md",
+                            "old_text": "# Draft",
+                            "new_text": "# Research notes",
+                            "expected_version": version,
+                        },
+                    )
+                ]
+            )
         return Reply(
             calls=[
                 call(

@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from docresearch.models import Finding, Limits, Reply, ResearchResult, ToolCall
+from docresearch.models import Finding, Limits, Plan, Reply, ResearchResult, ToolCall
 from docresearch.provider import DemoModel
 from docresearch.runtime import AgentState, Budget, BudgetExceeded, ResearchRun
 
@@ -26,7 +26,7 @@ def test_demo_end_to_end(corpus, tmp_path):
     assert result.status == "partial"
     assert result.metadata["tasks"] == 2
     assert result.metadata["peak_child_concurrency"] <= 2
-    assert result.metadata["model_calls_including_embeddings"] == 6
+    assert result.metadata["model_calls_including_embeddings"] == 13
     sources = json.loads((result.directory / "sources.json").read_text(encoding="utf-8"))
     assert sources
     report = (result.directory / "report.md").read_text(encoding="utf-8")
@@ -37,13 +37,14 @@ def test_demo_end_to_end(corpus, tmp_path):
         "sources.json",
         "trace.json",
         "run.json",
+        "tasks.json",
     }
     with pytest.raises(ValueError):
         asyncio.run(run.run("again"))
 
 
-@pytest.mark.parametrize("tool", ["task", "save_report", "bash", "write_file"])
-def test_child_cannot_delegate_or_write(corpus, tmp_path, tool):
+@pytest.mark.parametrize("tool", ["task", "save_report", "bash", "plan"])
+def test_child_cannot_delegate_or_publish(corpus, tmp_path, tool):
     run = ResearchRun(corpus, tmp_path / "out", DemoModel())
     child = AgentState("child", False)
     assert asyncio.run(run.dispatch(call(tool, {}), child)) == {"error": "tool_not_allowed"}
@@ -143,11 +144,13 @@ def test_child_context_and_evidence_return(corpus, tmp_path):
 
     run = ResearchRun(corpus, tmp_path / "out", RecordingDemo())
     parent = AgentState("parent", True)
-    output = asyncio.run(run.child("SQL", parent))
+    run.coordinator.plan(Plan.model_validate({"tasks": [{"task_id": "sql", "question": "SQL"}]}))
+    output = asyncio.run(run.child("sql", parent))
     assert len(messages_seen[0]) == 2
     assert messages_seen[0][1]["content"] == "SQL"
-    assert output["sources"]
-    assert all(s["id"] in parent.seen for s in output["sources"])
+    assert output["findings"]
+    assert "sources" not in output
+    assert not parent.seen
 
 
 def test_tool_budget_and_concurrency_one(corpus, tmp_path):

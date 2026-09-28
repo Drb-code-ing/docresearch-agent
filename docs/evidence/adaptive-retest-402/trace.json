@@ -1,0 +1,17 @@
+[
+  {
+    "event": "model_start",
+    "agent": "coordinator",
+    "elapsed_ms": 78,
+    "purpose": "agent_loop",
+    "context_chars": 1877
+  },
+  {
+    "event": "model_error",
+    "agent": "coordinator",
+    "elapsed_ms": 578,
+    "purpose": "agent_loop",
+    "error": "HTTPStatusError",
+    "http_status": 402
+  }
+]
