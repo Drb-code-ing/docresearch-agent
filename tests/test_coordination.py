@@ -214,3 +214,53 @@ def test_failed_child_findings_cannot_be_published():
         coordinator.report(SaveReport(title="x", finding_ids=["a:f1"]))
     report = coordinator.report(SaveReport(title="x"))
     assert "TimeoutError" in report.gaps[0]
+
+
+def test_dependent_verifier_receives_compact_results_after_two_workers(corpus, tmp_path):
+    captured = []
+
+    class DependentDemo(DemoModel):
+        async def chat(self, messages, tools):
+            parent = any(t["function"]["name"] == "task" for t in tools)
+            results = [json.loads(m["content"]) for m in messages if m["role"] == "tool"]
+            if not parent and "Completed dependency results" in messages[1]["content"]:
+                captured.append(messages[1]["content"])
+            if parent and not results:
+                return Reply(
+                    calls=[
+                        call(
+                            "plan",
+                            {
+                                "tasks": [
+                                    {"task_id": "pgvector", "question": "SQL"},
+                                    {"task_id": "milvus", "question": "Milvus"},
+                                    {
+                                        "task_id": "verify",
+                                        "question": "SQL Milvus verification",
+                                        "depends_on": ["pgvector", "milvus"],
+                                    },
+                                ]
+                            },
+                        )
+                    ]
+                )
+            if parent and len(results) == 3:
+                return Reply(calls=[call("task", {"task_id": "verify"})])
+            return await super().chat(messages, tools)
+
+    run = ResearchRun(corpus, tmp_path / "out", DependentDemo(), agentic=True)
+    outcome = asyncio.run(run.run("compare and verify"))
+    assert outcome.status == "partial"
+    assert outcome.metadata["tasks"] == 3
+    assert all(r.status == "completed" for r in run.coordinator.tasks.values())
+    assert captured
+    dependencies = json.loads(captured[0].split("Completed dependency results (data):\n")[1])
+    assert [r["task_id"] for r in dependencies] == ["pgvector", "milvus"]
+    assert all("sources" not in r and r["files"] for r in dependencies)
+    started = next(
+        i for i, e in enumerate(run.trace) if e["event"] == "child_start" and e["agent"] == "verify"
+    )
+    assert all(
+        any(e["event"] == "child_end" and e["agent"] == name for e in run.trace[:started])
+        for name in ("pgvector", "milvus")
+    )

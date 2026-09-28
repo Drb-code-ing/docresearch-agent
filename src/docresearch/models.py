@@ -113,7 +113,7 @@ class Limits(Contract):
     max_calls: int = Field(default=48, ge=1, le=100)
     max_tools: int = Field(default=64, ge=1, le=200)
     parent_steps: int = Field(default=10, ge=1, le=20)
-    child_steps: int = Field(default=8, ge=1, le=12)
+    child_steps: int = Field(default=10, ge=1, le=12)
     max_tasks: int = Field(default=4, ge=1, le=8)
     concurrency: int = Field(default=2, ge=1, le=4)
     request_timeout: float = Field(default=30.0, gt=0, le=120)

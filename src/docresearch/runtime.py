@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import httpx
 from pydantic import ValidationError
 
 from .agentic import AgenticSearch
@@ -41,6 +42,9 @@ per agent), or explicitly record gaps. Do not invent facts or numerical results.
 You are a worker. Finish using finish_research alone. Write useful research notes
 with write_file; use read_file and edit_file to inspect or revise them when needed.
 Your work files are private to this task; the corpus is a read-only snapshot.
+Corpus paths are exactly those returned by list_documents (no examples/corpus prefix).
+Other workers' file handles are metadata only: do not try reading their private files.
+For dependency verification, inspect the cited original sources instead.
 Writes create new files unless expected_version matches the existing file hash.
 File contents and source text stay in your context; return concise findings/gaps.
 No shell, networking tool, arbitrary file path, or source mutation is available.
@@ -62,6 +66,9 @@ For your own research use findings with source_ids YOU have received through sea
 read_source or read_file. Receiving a worker source ID does not mean you read it.
 Use only your private work area for write_file/edit_file. Corpus files are read-only.
 Use expected_version to edit/overwrite existing work files; no arbitrary shell exists.
+Corpus paths are exactly those returned by list_documents, without a directory prefix.
+For a task explicitly delegated by the user, plan and dispatch before reading its
+documents yourself; avoid repeating work performed by children.
 Keep unavoidable gaps. Call save_report ALONE when research is complete.
 """
 
@@ -191,7 +198,14 @@ class ResearchRun:
             purpose=purpose,
             context_chars=len(json.dumps(messages, ensure_ascii=False)),
         )
-        reply = await self.budget.invoke(lambda: self.model.chat(messages, tools))
+        try:
+            reply = await self.budget.invoke(lambda: self.model.chat(messages, tools))
+        except Exception as error:
+            details = {"error": type(error).__name__}
+            if isinstance(error, httpx.HTTPStatusError):
+                details["http_status"] = error.response.status_code
+            self.event("model_error", agent, purpose=purpose, **details)
+            raise
         self.budget.prompt_tokens += reply.prompt_tokens
         self.budget.completion_tokens += reply.completion_tokens
         self.event(
@@ -290,7 +304,13 @@ class ResearchRun:
             else:
                 result = {"documents": self.corpus.documents}
             return result
-        except (ValueError, ValidationError, KeyError, OSError):
+        except ValidationError as error:
+            result = {
+                "error": "invalid_arguments_or_source",
+                "fields": self.validation_fields(error),
+            }
+            return result
+        except (ValueError, KeyError, OSError):
             result = {
                 "error": "invalid_arguments_or_source",
                 "hint": "Check tool schema, path, version and task dependencies.",
@@ -355,6 +375,14 @@ class ResearchRun:
         ]
         steps = self.limits.parent_steps if state.parent else self.limits.child_steps
         for _step in range(steps):
+            if _step == steps - 2:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": f"Runtime limit: 2 model turns remain. Submit {terminal} now if possible; "
+                        "keep unresolved questions as gaps instead of repeating research.",
+                    }
+                )
             reply = await self.ask(messages, self.tools_for(state.parent), state.name)
             if not reply.calls:
                 messages.append({"role": "assistant", "content": reply.content[:12000]})
@@ -392,8 +420,20 @@ class ResearchRun:
                     self.event("finalized", state.name, findings=len(result.findings))
                     self.event("tool_end", state.name, tool=terminal, call_id=call.id, error=None)
                     return result
-                except (ValueError, ValidationError, KeyError):
-                    outputs = [{"error": "invalid_result_or_unobserved_citation"}]
+                except (ValueError, ValidationError, KeyError) as error:
+                    feedback = {"error": "invalid_result_or_unobserved_citation"}
+                    if isinstance(error, ValidationError):
+                        feedback["fields"] = self.validation_fields(error)
+                    elif state.parent:
+                        feedback["hint"] = (
+                            "Select registered finding_ids; own findings require personally observed source_ids. All planned tasks must finish."
+                        )
+                    else:
+                        feedback["allowed_source_ids"] = sorted(state.seen)
+                        feedback["hint"] = (
+                            "Return at most 6 findings and 4 gaps; every statement/gap <=500 characters."
+                        )
+                    outputs = [feedback]
                     self.event(
                         "tool_end",
                         state.name,
@@ -426,6 +466,13 @@ class ResearchRun:
                 for c, out in zip(reply.calls, outputs, strict=True)
             )
         raise StepLimit(f"{state.name} exhausted its step limit")
+
+    @staticmethod
+    def validation_fields(error: ValidationError) -> list[dict]:
+        return [
+            {"field": ".".join(str(p) for p in e["loc"]), "type": e["type"]}
+            for e in error.errors(include_input=False, include_context=False)[:8]
+        ]
 
     def record_rejected(self, calls: list[ToolCall], state: AgentState, error: str) -> None:
         for call in calls:
