@@ -114,6 +114,7 @@ uv run python -X utf8 -m docresearch.evaluation --backend es-milvus
 
 - [详细项目理解文档](docs/PROJECT_UNDERSTANDING.md)：用同一个问题，从 Python 启动、资料变片段，到检索、工具循环、子代理与报告逐步讲解。
 - [项目面试文档](docs/INTERVIEW_GUIDE.md)：每个模块的实现、选择理由、口述答案、追问和代码证据。
+- [LangSmith RAG 量化评估博客](docs/LANGSMITH_RAG_EVALUATION.md)：从具体坏答案理解三个指标、固定测试集与面试追问；为本项目提供评估设计，不代表已接入 LangSmith 或已有实验成绩。
 - [交付记录](docs/DELIVERY.md)：分步实现与验证过程。
 - [验收证据](docs/VALIDATION.md)：真实调用、模拟测试与未完成项分开记录。
 - [简历项目描述](docs/RESUME.md)：不含个人联系方式的可审计项目描述。

@@ -8,6 +8,8 @@
 
 面试准备可直接进入 [简历四条贡献](#resume-defense)、[上下文与文件隔离](#isolation-defense)、[设计模式追问](#pattern-defense)。遇到不会解释的字段，再回对应模块学习；第 13 节给出现场演示路线，第 15 节用于不看答案自测。
 
+新增的评估方案单独看 [LangSmith RAG 量化评估博客](LANGSMITH_RAG_EVALUATION.md)，含一分钟表达、指标区别和连续追问。下文四条贡献对应已实现功能；LangSmith 这一条对应学习实践与本项目的方案设计，不宣称已经完成 SDK 接入或质量提升实验。
+
 ### 每个模块按三层准备
 
 1. **先讲一个动作：** 例如“主让 A 查 pgvector、B 查 Milvus，拿到结果再汇总”。
