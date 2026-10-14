@@ -23,7 +23,7 @@
 | 文档与多模态入库 | 文本类文件、图片、音频及视频统一解析，保留原文件与来源信息 | LangChain Loaders、OCR/视觉理解、ASR、视频分片、MinIO |
 | 智能检索与问答 | 关键词与语义召回、融合重排、按资料作答与引用 | Elasticsearch、PostgreSQL/pgvector、RRF、Rerank |
 | 知识图谱 | 从文档抽取实体关系，支持关联查询与多跳检索 | Neo4j、Cypher、LangGraph |
-| Agent 编排 | 根据问题选择检索工具，必要时分解复杂任务并检查证据 | LangChain、LangGraph；DeepAgents 作为复杂任务扩展选型 |
+| Agent 编排 | 主 Agent 规划与工具调用，按需委派独立上下文的子 Agent；检索与证据处理使用业务状态流 | DeepAgents、LangGraph、LangChain |
 | 权限与记忆 | 功能权限、文档可见范围、会话上下文与用户偏好 | NestJS、PostgreSQL、RBAC、Redis、Mem0 |
 | 交互与观测 | 流式文本、语音交互、固定测试集评估与调用链排障 | Vercel AI SDK、SSE、WebSocket、腾讯云 ASR/TTS、LangSmith/OpenEvals、Langfuse |
 
@@ -33,12 +33,16 @@
 flowchart TD
     Web[Web 管理端与问答界面] --> API[NestJS API 与身份鉴权]
     API --> Docs[文档管理与多模态解析]
-    API --> Agent[LangGraph 问答编排]
+    API --> Agent[DeepAgents 主 Agent]
+    Agent --> Tasks[按需子 Agent / 独立上下文]
+    Tasks -->|精简结果| Agent
+    Agent --> Flow[LangGraph 检索与证据状态流]
+    Tasks --> Flow
     Docs --> Objects[MinIO 原文件与图片]
     Docs --> PG[PostgreSQL 业务数据与 pgvector]
     Docs --> ES[Elasticsearch 全文索引]
     Docs --> Neo[Neo4j 实体关系]
-    Agent --> Scope[文档权限范围]
+    Flow --> Scope[文档权限范围]
     Scope --> Hybrid[关键词与向量检索 / RRF / Rerank]
     Hybrid --> PG
     Hybrid --> ES
@@ -77,7 +81,7 @@ flowchart TD
 
 1. 接收文本问题，或通过 ASR 将录音转换为文本。
 2. 根据登录身份确定可访问的文档范围，加载当前会话与相关用户记忆。
-3. 由 LangGraph 编排问题判断与检索工具调用：一般资料问题走混合检索，涉及关联关系时调用图谱查询；复杂问题再考虑任务分解，不强制每次派发子 Agent。
+3. 由 DeepAgents 主 Agent 判断任务并调用工具：简单问题直接检索；复杂问题先规划，再按需派发子 Agent。主、子 Agent 统一调用 LangGraph 封装的检索与证据处理工具，涉及关联关系时使用图谱查询。
 4. 在权限范围内执行 pgvector 与 Elasticsearch 双路召回，按片段 ID 去重，经 RRF 融合、Rerank 排序；必要时加入有来源的图谱查询结果。
 5. 检查证据能否回答问题；缺少依据时补充检索或说明无法确认，不凭记忆补造业务事实。
 6. 将答案与来源引用通过 SSE 增量返回；语音模式再将文本片段送入流式 TTS，经 WebSocket 返回音频。
@@ -94,7 +98,11 @@ flowchart TD
 
 ### 流式交互与模块边界
 
-NestJS 负责接口、鉴权与模型 Provider 注入；LangChain 组装模型链，LangGraph 管理问答状态和工具路由。DeepAgents 保留为复杂调研任务的扩展，不替代普通问答的全部流程。
+NestJS 负责接口、鉴权与模型 Provider 注入；LangChain 组装模型链。DeepAgents 作为主 Agent 运行时，负责规划、工具调用和按需子任务委派；LangGraph 则将检索、证据评估与受限补查封装为可调用的业务状态流。DeepAgents 本身建立在 LangGraph 之上，这里区分的是 Agent 运行时与业务检索子流程，不是两套重复的主调度器。
+
+主 Agent 保留直接检索、读取来源和使用工作笔记工具的能力，简单任务不做无谓委派。复杂任务的子 Agent 使用独立对话上下文，只接收子任务问题、必要依赖结果与授权范围；返回精简结论、来源标识和资料缺口，不回传完整对话、工具历史或原文集合。
+
+文件工具的后端需要配置 Agent 级工作路径与访问约束，不能将框架默认的共享文件系统当成独立工作区；文档权限仍由服务端检索和下载接口强制执行，不依赖 Prompt 或上下文隔离。Redis / Mem0 保存的会话与用户记忆，也与单次 Agent 运行状态分开管理。
 
 文本增量使用 SSE，音频增量使用 WebSocket。现有 NestJS 原型输出普通 SSE 文本事件；接入 Vercel AI SDK 时还需要适配其流协议与消息状态，不能直接将当前接口称为完整聊天集成。
 
@@ -114,6 +122,7 @@ NestJS 负责接口、鉴权与模型 Provider 注入；LangChain 组装模型�
 | 内容 | 已有材料 | 尚缺什么 |
 | --- | --- | --- |
 | 产品需求、选型与 RBAC 数据设计 | [知识库规划笔记](https://github.com/Drb-code-ing/WROKSPACE/blob/4fe6191/ai/project/company_knowledge/readme.md)，`0c198e1`、`a0554d7`、`769ef45`、`ea40aad` | 正式 schema、迁移、鉴权、权限管理与管理端 |
+| DeepAgents 编排 | [主/子 Agent 调研助手](https://github.com/Drb-code-ing/WROKSPACE/tree/ea8c3e0/ai/agent/deepagents/deep-research-assistant)与[框架学习笔记](https://github.com/Drb-code-ing/WROKSPACE/blob/f4f6807/ai/agent/deepagents/readme.md)，`e759fae`、`ea8c3e0`、`f4f6807`；任务规划、子 Agent、记忆与摘要中间件示例 | 尚未接入新平台的身份权限、检索子流程、工作区和结果契约 |
 | NestJS 流式问答 | [AI 模块](https://github.com/Drb-code-ing/WROKSPACE/tree/4fe6191/ai/agent/asr_tts/asr-and-tts-nest-service/src/ai)，`4fe6191`；工厂 Provider、LangChain stream、async generator 与 SSE | 当前是通用模型问答，没有检索、引用、鉴权或平台数据接入 |
 | GraphRAG | [四节点示例](https://github.com/Drb-code-ing/WROKSPACE/blob/58d6395/ai/agent/graph_rag/neo4j-graphrag/src/graphrag.mjs)，`58d6395`；问题解析、Cypher 生成、执行与回答 | 当前使用奶茶样例图谱；缺少企业文档实体抽取、混合检索融合和权限控制 |
 | 单句 ASR 与流式 TTS | [语音脚本](https://github.com/Drb-code-ing/WROKSPACE/tree/6760908/ai/agent/asr_tts/tts-stt-test/src)，`b5c5376`、`6760908` | 缺少 NestJS ASR 后端与文本/音频端到端交互集成 |
@@ -123,7 +132,7 @@ NestJS 负责接口、鉴权与模型 Provider 注入；LangChain 组装模型�
 ## 实施顺序
 
 1. **文本资料闭环：** NestJS 服务、身份鉴权、文档管理、MinIO、文本解析与 pgvector 入库。
-2. **带权限的混合问答：** Elasticsearch、RRF/Rerank、检索前过滤、SSE 与来源引用；先能从文本资料正确作答。
+2. **带权限的混合问答：** Elasticsearch、RRF/Rerank、检索前过滤、SSE 与来源引用；以 LangGraph 封装检索工具并接入 DeepAgents 主 Agent，再增加复杂任务的按需委派。
 3. **关系查询：** 企业文档实体抽取、Neo4j 入库、受权限约束的图谱检索，并与混合检索结果整合。
 4. **多模态与语音：** 图片/OCR、音频转录、视频分片；接入 ASR/TTS 和前端播放、中断流程。
 5. **会话与效果迭代：** Redis/Mem0、LangSmith 固定集评估、Langfuse 观测，补齐更新删除与跨索引一致性检查。
